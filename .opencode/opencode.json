@@ -1,0 +1,25 @@
+{
+  "$schema": "https://opencode.ai",
+  "model": "anthropic/claude-sonnet-4-5",
+  "small_model": "anthropic/claude-haiku-4-5",
+  "plugin": [
+    "opencode-marketplace",
+    "opencode-session-manager",
+    "opencode-skills-manager",
+    "list"
+  ],
+  "provider": {
+    "anthropic": {
+      "models": {
+        "claude-sonnet-4-5": {
+          "options": {
+            "thinking": {
+              "type": "enabled",
+              "budgetTokens": 16000
+            }
+          }
+        }
+      }
+    }
+  }
+}

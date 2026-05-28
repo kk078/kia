@@ -1,0 +1,192 @@
+services:
+  redis:
+    image: redis:7-alpine
+    container_name: brain-redis-prod
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - brain-network
+
+  weaviate:
+    image: semitechnologies/weaviate:1.27.0
+    container_name: brain-weaviate-prod
+    restart: unless-stopped
+    ports:
+      - "8081:8080"
+      - "50051:50051"
+    environment:
+      QUERY_DEFAULTS_LIMIT: 25
+      AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED: 'true'
+      PERSISTENCE_DATA_PATH: '/var/lib/weaviate'
+      DEFAULT_VECTORIZER_MODULE: 'none'
+      ENABLE_MODULES: ''
+      CLUSTER_HOSTNAME: 'node1'
+    volumes:
+      - weaviate-data:/var/lib/weaviate
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - brain-network
+
+  falkordb:
+    image: falkordb/falkordb:latest
+    container_name: brain-falkordb-prod
+    restart: unless-stopped
+    ports:
+      - "6380:6379"
+      - "3001:3000"
+    volumes:
+      - falkordb-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - brain-network
+
+  langfuse-db:
+    image: postgres:15-alpine
+    container_name: brain-langfuse-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${LANGFUSE_DB_USER:-langfuse}
+      POSTGRES_PASSWORD: ${LANGFUSE_DB_PASSWORD:-langfuse}
+      POSTGRES_DB: langfuse
+    volumes:
+      - langfuse-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${LANGFUSE_DB_USER:-langfuse}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - brain-network
+
+  langfuse:
+    image: langfuse/langfuse:2
+    container_name: brain-langfuse-prod
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: postgresql://${LANGFUSE_DB_USER:-langfuse}:${LANGFUSE_DB_PASSWORD:-langfuse}@langfuse-db:5432/langfuse
+      NEXTAUTH_SECRET: ${LANGFUSE_SECRET:-mysecret}
+      NEXTAUTH_URL: ${LANGFUSE_URL:-http://localhost:3000}
+      SALT: ${LANGFUSE_SALT:-mysalt}
+      TELEMETRY_ENABLED: 'false'
+      LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: 'false'
+    depends_on:
+      langfuse-db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/public/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - brain-network
+
+  python-api:
+    build:
+      context: ./agents
+      dockerfile: Dockerfile
+    container_name: brain-python-api-prod
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      REDIS_URL: redis://redis:6379
+      WEAVIATE_URL: http://weaviate:8080
+      FALKORDB_URL: redis://falkordb:6379
+      LANGFUSE_URL: http://langfuse:3000
+      LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
+      LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY}
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
+      DEFAULT_OSS_PROVIDER: ${DEFAULT_OSS_PROVIDER:-ollama}
+      DEFAULT_OSS_MODEL: ${DEFAULT_OSS_MODEL:-llama3.1}
+      ENVIRONMENT: production
+      LOG_LEVEL: INFO
+    depends_on:
+      redis:
+        condition: service_healthy
+      weaviate:
+        condition: service_healthy
+      falkordb:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
+    networks:
+      - brain-network
+
+  dotnet-gateway:
+    build:
+      context: ./gateway
+      dockerfile: Dockerfile
+    container_name: brain-dotnet-gateway-prod
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:5000
+      PythonApi__Url: http://python-api:8000
+    depends_on:
+      python-api:
+        condition: service_healthy
+    networks:
+      - brain-network
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: brain-ollama-prod
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks:
+      - brain-network
+
+volumes:
+  redis-data:
+  weaviate-data:
+  falkordb-data:
+  langfuse-db-data:
+  ollama-data:
+
+networks:
+  brain-network:
+    driver: bridge
