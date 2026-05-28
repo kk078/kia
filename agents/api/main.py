@@ -16,9 +16,17 @@ app = FastAPI(
     version="0.1.0",
 )
 
+# Allowed browser origins. In production the Worker proxies same-origin, but we
+# keep an explicit allow-list (wildcard + credentials is invalid per the CORS spec).
+_cors_origins = [
+    "https://kia.aetherahealthcare.com",
+    "http://localhost:3001",  # vite dev server
+    "http://localhost:8000",
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

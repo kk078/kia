@@ -1,0 +1,42 @@
+# Cloudflare Worker: edge API proxy for Secondary Brain
+# Routes kia.aetherahealthcare.com/api/* and /health to the local backend
+# (FastAPI :8000 / .NET :5000) which is exposed through a Cloudflare Tunnel.
+#
+# Auth: the public app sits behind Cloudflare Access (interactive login).
+# This Worker reaches the origin tunnel hostname using an Access SERVICE TOKEN,
+# so the origin is never openly public.
+
+name = "kia-api-proxy"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+workers_dev = false
+
+# Route only the API paths through this Worker. Everything else on the
+# hostname is served by Cloudflare Pages (the Vue frontend).
+routes = [
+  { pattern = "kia.aetherahealthcare.com/api/*", zone_name = "aetherahealthcare.com" },
+  { pattern = "kia.aetherahealthcare.com/health", zone_name = "aetherahealthcare.com" },
+]
+
+[vars]
+# Public tunnel hostname that fronts your local backend (set up in cloudflared/config.yml).
+# This host should be locked down with a Cloudflare Access SERVICE-TOKEN policy.
+BACKEND_ORIGIN = "https://origin.aetherahealthcare.com"
+
+# Comma-separated allowed browser origins (the app's own origin).
+ALLOWED_ORIGIN = "https://kia.aetherahealthcare.com"
+
+# Simple per-IP rate limit (requests per 60s window). Requires the RATE_LIMIT
+# KV namespace binding below to be enabled; otherwise rate limiting is skipped.
+RATE_LIMIT_PER_MIN = "120"
+
+# --- Secrets (set with `wrangler secret put`, NOT committed) ---
+# CF_ACCESS_CLIENT_ID      -> Access service token Client ID
+# CF_ACCESS_CLIENT_SECRET  -> Access service token Client Secret
+
+# --- Optional: enable KV-based rate limiting ---
+# Create with: wrangler kv namespace create RATE_LIMIT
+# then uncomment and paste the id below.
+# [[kv_namespaces]]
+# binding = "RATE_LIMIT"
+# id = "REPLACE_WITH_KV_NAMESPACE_ID"

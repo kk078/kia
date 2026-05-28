@@ -1,0 +1,26 @@
+# Cloudflare Tunnel config for the Secondary Brain local backend.
+# Copy to config.yml and fill in tunnel id + credentials path, then run:
+#   cloudflared tunnel run secondary-brain
+#
+# The Worker (kia-api-proxy) calls `origin.aetherahealthcare.com`, which this
+# tunnel maps to the local FastAPI gateway. Lock that hostname behind a
+# Cloudflare Access SERVICE-TOKEN policy so only the Worker can reach it.
+
+tunnel: REPLACE_WITH_TUNNEL_ID
+credentials-file: C:\Users\YOUR_USER\.cloudflared\REPLACE_WITH_TUNNEL_ID.json
+
+ingress:
+  # Primary backend the Worker proxies to (FastAPI gateway).
+  - hostname: origin.aetherahealthcare.com
+    service: http://localhost:8000
+
+  # Optional: expose the .NET gateway directly if you want to use it instead of FastAPI.
+  - hostname: gateway.aetherahealthcare.com
+    service: http://localhost:5000
+
+  # Optional: Langfuse observability UI (protect with Cloudflare Access).
+  - hostname: langfuse.aetherahealthcare.com
+    service: http://localhost:3000
+
+  # Required catch-all.
+  - service: http_status:404
