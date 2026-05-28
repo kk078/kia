@@ -49,9 +49,16 @@ Everything below is **free** (Pages, Workers free tier, Tunnel, DNS, Access for 
 ```powershell
 winget install cloudflare.cloudflared
 npm install -g wrangler
-wrangler login          # authorize wrangler to your Cloudflare account
-cloudflared tunnel login
 ```
+> **Multiple Cloudflare accounts?** Do NOT use `wrangler login` (it stores one global
+> OAuth session and can point at the wrong account). Instead authenticate per-command
+> with an account-scoped API token — see "Using a separate Cloudflare account" below.
+> Set the token + account id in your shell, then confirm:
+> ```powershell
+> $env:CLOUDFLARE_API_TOKEN="<token for the kia account>"
+> $env:CLOUDFLARE_ACCOUNT_ID="<kia account id>"
+> wrangler whoami        # verify it shows the intended account
+> ```
 
 ### 1. Create the Tunnel (local backend)
 ```powershell
@@ -122,6 +129,35 @@ On every push to `master`/`main`, CI runs tests, deploys Pages, and deploys the 
 (The backend is **not** deployed by CI — it lives on your local server via the tunnel.)
 
 ---
+
+## Using a separate Cloudflare account (avoiding conflicts)
+
+You run other projects under a different Cloudflare account, so isolate this one:
+
+1. **Pin the account in code.** `worker/wrangler.toml` has `account_id = "<kia account id>"`.
+   Fill it in. Wrangler will refuse to deploy anywhere else.
+2. **Use an account-scoped API token, not `wrangler login`.** Create the token while
+   logged into the *kia* account (API Tokens page), then export it as
+   `CLOUDFLARE_API_TOKEN` for wrangler/cloudflared commands. The token is bound to that
+   one account, so your global login state is irrelevant. `wrangler whoami` confirms.
+3. **GitHub is already isolated.** Actions secrets are per-repo — `kk078/kia` holds the
+   *kia* account's `CLOUDFLARE_API_TOKEN` + `CLOUDFLARE_ACCOUNT_ID`; your other repos keep
+   their own. No cross-talk.
+4. **Tunnel: prefer a token-based (remotely-managed) tunnel** so you don't disturb the
+   `cert.pem` your other account uses:
+   - Zero Trust → **Networks → Tunnels → Create a tunnel** (in the *kia* account).
+   - Copy the tunnel **token**, then run it without any global login:
+     ```powershell
+     cloudflared service install <TUNNEL_TOKEN>     # installs + starts as a service
+     ```
+   - Add the public hostname `origin.aetherahealthcare.com` → `http://localhost:8000`
+     in that tunnel's **Public Hostnames** tab (replaces the local `config.yml` ingress).
+   - If you prefer the CLI/`config.yml` method instead, keep accounts apart with a
+     dedicated cert + config dir:
+     ```powershell
+     cloudflared tunnel --origincert C:\dev\cloudflared\kia-cert.pem login
+     cloudflared tunnel --config C:\dev\cloudflared\config.yml run secondary-brain
+     ```
 
 ## Verify
 ```powershell

@@ -11,6 +11,12 @@ main = "src/index.js"
 compatibility_date = "2024-11-01"
 workers_dev = false
 
+# Pin this Worker to the CORRECT Cloudflare account. This prevents deploys from
+# ever landing in another account you use for other projects. Get it from
+# `wrangler whoami` or the dashboard sidebar. Combined with an account-scoped
+# CLOUDFLARE_API_TOKEN, your global `wrangler login` state no longer matters.
+account_id = "2c268625d9e6e4c084ff296fcdf5f3bd"
+
 # Route only the API paths through this Worker. Everything else on the
 # hostname is served by Cloudflare Pages (the Vue frontend).
 routes = [

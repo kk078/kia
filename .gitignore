@@ -79,3 +79,8 @@ docker-compose.override.yml
 .opencode/package.json
 .opencode/package-lock.json
 .opencode/bun.lock
+
+# Deployment credentials (Cloudflare / GitHub)
+.env.deploy
+*.dev.vars
+.dev.vars

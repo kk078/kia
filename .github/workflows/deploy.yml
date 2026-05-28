@@ -69,7 +69,8 @@ jobs:
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy frontend/dist --project-name=kia --branch=main
+          workingDirectory: ./frontend
+          command: pages deploy dist --project-name=kia --branch=main
 
   deploy-worker:
     needs: test
