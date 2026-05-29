@@ -243,6 +243,32 @@ async def retrieve_context(query: str, top_k: int = 5) -> list[dict[str, Any]]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/v1/knowledge/graphrag/ingest")
+async def graphrag_ingest(text: str, document_id: str) -> dict[str, Any]:
+    """Ingest text into the FalkorDB knowledge graph (provider-free, local models)."""
+    if not settings.graphrag_enabled:
+        raise HTTPException(status_code=503, detail="GraphRAG disabled (set GRAPHRAG_ENABLED=true)")
+    from brain_knowledge.graphrag import GraphRAGEngine
+
+    try:
+        return await GraphRAGEngine().ingest(text, document_id)
+    except Exception as e:
+        raise _llm_error(e)
+
+
+@app.post("/api/v1/knowledge/graphrag/query")
+async def graphrag_query(question: str) -> dict[str, str]:
+    """Answer a question via knowledge-graph traversal (cited, multi-hop)."""
+    if not settings.graphrag_enabled:
+        raise HTTPException(status_code=503, detail="GraphRAG disabled (set GRAPHRAG_ENABLED=true)")
+    from brain_knowledge.graphrag import GraphRAGEngine
+
+    try:
+        return {"answer": await GraphRAGEngine().query(question)}
+    except Exception as e:
+        raise _llm_error(e)
+
+
 @app.post("/api/v1/knowledge/rag")
 async def rag_query(
     question: str, model: str | None = None, session_id: str | None = None

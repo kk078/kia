@@ -61,5 +61,12 @@ class Settings(BaseSettings):
     guard_action: str = "flag"  # flag | redact | block
     guard_block_threshold: int = 80
 
+    # GraphRAG (FalkorDB GraphRAG SDK) — knowledge-graph-augmented retrieval.
+    # Provider-free by default: local Ollama for both generation and embeddings.
+    graphrag_enabled: bool = False
+    graphrag_graph_name: str = "brain_kg"
+    graphrag_llm_model: str = ""  # empty -> derived from default_oss_provider/model
+    graphrag_embed_model: str = "ollama/nomic-embed-text"
+
 
 settings = Settings()
