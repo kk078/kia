@@ -170,7 +170,10 @@ Provide the result in a clear format."""
                     "Provide a clear, comprehensive answer to the original goal."
                 )
 
-                final_response = await self.llm.generate(synthesis_prompt, task_type="synthesis")
+                # Verified synthesis (self-consistency when verify_enabled; else plain generate).
+                final_response = await self.llm.generate_verified(
+                    synthesis_prompt, task_type="synthesis"
+                )
 
                 return AgentResponse(
                     content=final_response,

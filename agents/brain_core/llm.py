@@ -331,3 +331,34 @@ class LLMRouter:
         response = await self.complete(selected_model, messages, **kwargs)
         content: str = response.choices[0].message.content
         return content
+
+    async def generate_verified(
+        self,
+        prompt: str,
+        task_type: str = "research",
+        model: str | None = None,
+        samples: int | None = None,
+        **kwargs: Any,
+    ) -> str:
+        """Generate with self-consistency: sample N candidates, then judge/merge.
+
+        Trades extra (local, free) inference for accuracy. No-op when verification
+        is disabled or samples <= 1, in which case it behaves like generate().
+        """
+        n = samples if samples is not None else settings.verify_samples
+        if not settings.verify_enabled or n <= 1:
+            return await self.generate(prompt, task_type, model, **kwargs)
+
+        candidates: list[str] = []
+        for _ in range(n):
+            candidates.append(await self.generate(prompt, task_type, model, **kwargs))
+
+        joined = "\n\n".join(f"Candidate {i + 1}:\n{c}" for i, c in enumerate(candidates))
+        judge_prompt = (
+            "You are a strict verifier. Several candidate answers to the SAME task are below. "
+            "Cross-check them, discard anything unsupported or self-contradictory, prefer the "
+            "consensus where they disagree, and produce the single most accurate and complete "
+            "answer.\n\n"
+            f"Task:\n{prompt}\n\n{joined}\n\nFinal verified answer:"
+        )
+        return await self.generate(judge_prompt, task_type="synthesis", model=model)

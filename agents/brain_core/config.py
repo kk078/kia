@@ -68,5 +68,13 @@ class Settings(BaseSettings):
     graphrag_llm_model: str = ""  # empty -> derived from default_oss_provider/model
     graphrag_embed_model: str = "ollama/nomic-embed-text"
 
+    # Verification / self-consistency (sample N candidates + judge). Opt-in (N x cost).
+    verify_enabled: bool = False
+    verify_samples: int = 3
+
+    # DSPy programmatic reasoning/optimization (local/provider-free). Opt-in + lazy.
+    dspy_enabled: bool = False
+    dspy_model: str = ""  # empty -> ollama_chat/<default_oss_model>
+
 
 settings = Settings()

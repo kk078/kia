@@ -193,14 +193,31 @@ async def generate_text(
     task_type: str = "simple",
     model: str | None = None,
     session_id: str | None = None,
+    verify: bool = False,
 ) -> dict[str, str]:
-    """Generate text using LLM router."""
+    """Generate text using LLM router (optionally with self-consistency verification)."""
     from brain_core.llm import LLMRouter
 
     try:
         router = LLMRouter()
-        response = await router.generate(prompt, task_type, model)
+        if verify:
+            response = await router.generate_verified(prompt, task_type=task_type, model=model)
+        else:
+            response = await router.generate(prompt, task_type, model)
         return {"response": response}
+    except Exception as e:
+        raise _llm_error(e)
+
+
+@app.post("/api/v1/llm/dspy")
+async def dspy_answer(question: str) -> dict[str, str]:
+    """Answer via a DSPy ChainOfThought program over a local model (opt-in)."""
+    if not settings.dspy_enabled:
+        raise HTTPException(status_code=503, detail="DSPy disabled (set DSPY_ENABLED=true)")
+    from brain_core.optimize import DSPyReasoner
+
+    try:
+        return {"answer": DSPyReasoner().answer(question)}
     except Exception as e:
         raise _llm_error(e)
 
