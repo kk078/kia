@@ -12,6 +12,8 @@ from brain_core.trace_context import set_trace_context
 from brain_core.types import Context
 from brain_memory.models import Episode, Fact, Skill
 
+from api.openai_compat import router as openai_router
+
 app = FastAPI(
     title="Secondary Brain API",
     description="Autonomous knowledge system with multi-layer memory and multi-agent orchestration",
@@ -33,6 +35,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# KIA OpenAI-compatible surface (/v1/models, /v1/chat/completions)
+app.include_router(openai_router)
 
 
 @app.middleware("http")
