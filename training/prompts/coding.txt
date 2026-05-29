@@ -1,0 +1,20 @@
+Write a Python function that merges two sorted lists into one sorted list.
+Explain the difference between a process and a thread, with a short example.
+Refactor a for-loop that builds a list into a list comprehension; show before and after.
+Write a SQL query to find the second-highest salary in an employees table.
+Implement a debounce function in JavaScript and explain when to use it.
+Write a Python decorator that retries a function up to N times with exponential backoff.
+Explain async/await in Python with a minimal working example.
+Write a unit test (pytest) for a function that validates email addresses.
+Show how to safely read a large file line by line in Python.
+Explain the difference between a list and a tuple in Python and when to use each.
+Write a function to detect a cycle in a singly linked list.
+Explain what a race condition is and how to prevent it.
+Write a regular expression to extract all URLs from a block of text, with explanation.
+Convert a recursive Fibonacci function to an iterative one and explain the tradeoff.
+Explain dependency injection with a small Python example.
+Write a FastAPI endpoint that accepts JSON and returns a validated response.
+Explain the difference between SQL JOIN types with a one-line example each.
+Write a Python context manager that times the code inside it.
+How do you handle environment-specific config secrets in a Python service?
+Explain what idempotency means for an API and how to implement it.

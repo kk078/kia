@@ -1,0 +1,15 @@
+A bat and a ball cost $1.10 total. The bat costs $1.00 more than the ball. How much is the ball? Show your reasoning.
+If a train travels 60 km in 1.5 hours, what is its average speed? Show steps.
+There are 3 boxes; one has only apples, one only oranges, one mixed, and all labels are wrong. You may pick one fruit from one box. How do you correctly label all boxes?
+A farmer has 17 sheep and all but 9 die. How many are left? Explain.
+Explain step by step how to estimate the number of piano tuners in a large city.
+If it takes 5 machines 5 minutes to make 5 widgets, how long for 100 machines to make 100 widgets? Reason it out.
+You have a 3-liter and a 5-liter jug. How do you measure exactly 4 liters? Give the steps.
+Walk through the logic of binary search and why it is O(log n).
+A company's revenue grew 20% then fell 20%. Is it higher, lower, or the same as the start? Explain.
+Given two ropes that each burn in 60 minutes unevenly, how do you measure 45 minutes? Explain.
+Explain how to break a vague problem ("our users are churning") into testable hypotheses.
+If today is Wednesday, what day will it be in 100 days? Show the modular-arithmetic reasoning.
+Explain the sunk cost fallacy and give a concrete decision example.
+Reason through whether correlation in a dataset implies causation, with an example.
+Explain how you would debug a service that is "sometimes slow" — your reasoning process.

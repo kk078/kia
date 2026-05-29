@@ -1,0 +1,15 @@
+Summarize the benefits of writing unit tests in 3 concise bullet points.
+Write a professional email politely declining a meeting due to a scheduling conflict.
+Explain the concept of technical debt to a non-technical manager.
+Summarize what a REST API is in two sentences.
+Write a clear commit message for a change that fixes a null-pointer bug in a login flow.
+Explain the difference between authentication and authorization simply.
+Draft a short standup update given: finished the login page, blocked on API keys, starting tests today.
+Explain what Docker is and why teams use it, briefly.
+Write a one-paragraph summary of how RAG (retrieval-augmented generation) works.
+Explain the tradeoff between consistency and availability in distributed systems, briefly.
+Rewrite this sentence to be clearer and more concise: "Due to the fact that the system was not operational, we were unable to proceed."
+Explain what an environment variable is and why secrets go there.
+Give three tips for writing readable code.
+Explain the purpose of a load balancer in plain language.
+Summarize the difference between TCP and UDP in two sentences.
