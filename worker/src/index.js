@@ -12,7 +12,16 @@
  */
 
 const ACCESS_TEAM_DOMAIN = "aetheraonline.cloudflareaccess.com";
-const ACCESS_AUD = "0b5343b0a6d3ecf2391a4de18da6f0285d977ef59407b6865865bfb1fcf984e0";
+// AUDs of the Access apps in this deployment (kia root + bypass apps + tunnel origin).
+// The session cookie is shared across the *.aetherahealthcare.com zone, so its aud may
+// be any of these depending on which app last issued it.
+const ACCESS_AUDS = [
+  "0b5343b0a6d3ecf2391a4de18da6f0285d977ef59407b6865865bfb1fcf984e0", // kia root (SPA login)
+  "d4c828f04e9657a7540eeefab158317d33301e6a11a81eaccf88b5b58b7c2a0b", // kia /api (bypass)
+  "e2128d7a6b5031331878b9595b17f066c33a2a8619c61b256dcf0516f1372fe3", // kia /health (bypass)
+  "e4e16512e7ac821b88ae0a91ba24e899efef1fd248c22cfdbadec78596c2a381", // origin tunnel
+];
+const ACCESS_ISS = "https://aetheraonline.cloudflareaccess.com";
 
 const HOP_BY_HOP = new Set([
   "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
@@ -35,12 +44,24 @@ export default {
     let userEmail = null;
     if (!isHealth) {
       // Require a valid Access session for /api/*
+      const cookieHeader = request.headers.get("Cookie") || "";
+      const cookieNames = cookieHeader.split(";").map((c) => c.split("=")[0].trim()).filter(Boolean);
       const token = getAccessToken(request);
-      const payload = token ? await verifyAccessJwt(token) : null;
-      if (!payload) {
-        return json({ error: "unauthorized", detail: "No valid Cloudflare Access session." }, 401, env);
+      const res = token ? await verifyAccessJwt(token) : { ok: false, reason: "no_token" };
+      if (!res.ok) {
+        return json(
+          {
+            error: "unauthorized",
+            reason: res.reason,
+            cookies_seen: cookieNames,
+            token_aud: res.aud || null,
+            expected_aud: ACCESS_AUDS,
+          },
+          401,
+          env
+        );
       }
-      userEmail = payload.email || payload.identity_nonce || null;
+      userEmail = res.payload.email || null;
     }
 
     const origin = (env.BACKEND_ORIGIN || "").replace(/\/$/, "");
@@ -107,15 +128,19 @@ function b64url(s) {
 async function verifyAccessJwt(token) {
   try {
     const parts = token.split(".");
-    if (parts.length !== 3) return null;
+    if (parts.length !== 3) return { ok: false, reason: "malformed_token" };
     const [h, p, sig] = parts;
     const header = JSON.parse(new TextDecoder().decode(b64url(h)));
     const payload = JSON.parse(new TextDecoder().decode(b64url(p)));
-    if (!payload.exp || payload.exp * 1000 < Date.now()) return null;
     const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-    if (!auds.includes(ACCESS_AUD)) return null;
+    if (!payload.exp || payload.exp * 1000 < Date.now())
+      return { ok: false, reason: "expired", aud: auds };
+    if (payload.iss && payload.iss !== ACCESS_ISS)
+      return { ok: false, reason: "iss_mismatch", aud: auds };
+    if (!auds.some((a) => ACCESS_AUDS.includes(a)))
+      return { ok: false, reason: "aud_mismatch", aud: auds };
     const jwk = (await getJwks()).find((k) => k.kid === header.kid);
-    if (!jwk) return null;
+    if (!jwk) return { ok: false, reason: "no_jwk_for_kid", aud: auds };
     const key = await crypto.subtle.importKey(
       "jwk",
       { kty: jwk.kty, n: jwk.n, e: jwk.e, alg: "RS256", ext: true },
@@ -129,9 +154,9 @@ async function verifyAccessJwt(token) {
       b64url(sig),
       new TextEncoder().encode(`${h}.${p}`)
     );
-    return ok ? payload : null;
-  } catch {
-    return null;
+    return ok ? { ok: true, payload } : { ok: false, reason: "bad_signature", aud: auds };
+  } catch (e) {
+    return { ok: false, reason: "parse_error: " + String(e) };
   }
 }
 
