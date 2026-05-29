@@ -107,6 +107,13 @@ services:
     restart: unless-stopped
     ports:
       - "8000:8000"
+    healthcheck:
+      # stdlib-only check (system python lacks httpx, which lives in the uv .venv)
+      test: ["CMD-SHELL", "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:8000/health').status==200 else 1)\""]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 90s
     environment:
       REDIS_URL: redis://redis:6379
       WEAVIATE_URL: http://weaviate:8080
@@ -118,7 +125,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       MISTRAL_API_KEY: ${MISTRAL_API_KEY}
-      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_BASE_URL: http://host.docker.internal:11434
       OLLAMA_MODEL: ${OLLAMA_MODEL:-llama3.1}
       DEFAULT_OSS_PROVIDER: ${DEFAULT_OSS_PROVIDER:-ollama}
       DEFAULT_OSS_MODEL: ${DEFAULT_OSS_MODEL:-llama3.1}
@@ -131,8 +138,8 @@ services:
         condition: service_healthy
       falkordb:
         condition: service_healthy
-      ollama:
-        condition: service_healthy
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - brain-network
 
@@ -154,38 +161,11 @@ services:
     networks:
       - brain-network
 
-  ollama:
-    image: ollama/ollama:latest
-    container_name: brain-ollama-prod
-    restart: unless-stopped
-    ports:
-      - "11434:11434"
-    volumes:
-      - ollama-data:/root/.ollama
-    environment:
-      - OLLAMA_HOST=0.0.0.0
-    healthcheck:
-      test: ["CMD", "ollama", "list"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 60s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    networks:
-      - brain-network
-
 volumes:
   redis-data:
   weaviate-data:
   falkordb-data:
   langfuse-db-data:
-  ollama-data:
 
 networks:
   brain-network:
