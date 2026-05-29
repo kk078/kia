@@ -7,12 +7,11 @@ from typing import Any
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
+from api.openai_compat import router as openai_router
 from brain_core.config import settings
 from brain_core.trace_context import set_trace_context
 from brain_core.types import Context
 from brain_memory.models import Episode, Fact, Skill
-
-from api.openai_compat import router as openai_router
 
 app = FastAPI(
     title="Secondary Brain API",
