@@ -8,6 +8,7 @@ import litellm
 
 from brain_core.config import settings
 from brain_core.metrics import track_llm_call
+from brain_core.trace_context import get_trace_context
 from brain_core.tracing import (
     llm_traced,
 )
@@ -126,6 +127,7 @@ class LLMRouter:
             "generation_name": "llm_complete",
             "tags": [f"env:{settings.environment}"],
         }
+        lf_meta.update(get_trace_context())  # session_id + trace_user_id (request-scoped)
         caller_meta = kwargs.pop("metadata", None)
         if isinstance(caller_meta, dict):
             lf_meta.update(caller_meta)
@@ -235,20 +237,18 @@ class LLMRouter:
         Returns:
             Model string for the task
         """
-        # Use configured default OSS provider and model
         default_oss = f"{settings.default_oss_provider}/{settings.default_oss_model}"
+        complex_tasks = {"planning", "research", "synthesis", "code"}
 
-        routing_map = {
-            # Complex tasks - prefer commercial if available, else OSS
-            "planning": default_oss,
-            "research": default_oss,
-            "synthesis": default_oss,
-            "code": default_oss,
-            # Simple/fast tasks - always use OSS
-            "simple": default_oss,
-            "fast": default_oss,
-        }
-        return routing_map.get(task_type, default_oss)
+        # Prefer a configured commercial provider (better quality); fall back to OSS.
+        if settings.anthropic_api_key:
+            strong, fast = "anthropic/claude-3-5-sonnet-20241022", "anthropic/claude-3-haiku-20240307"
+        elif settings.openai_api_key:
+            strong, fast = "openai/gpt-4-turbo", "openai/gpt-3.5-turbo"
+        else:
+            strong = fast = default_oss
+
+        return strong if task_type in complex_tasks else fast
 
     def get_available_providers(self) -> dict[str, dict[str, str]]:
         """Get list of configured LLM providers.

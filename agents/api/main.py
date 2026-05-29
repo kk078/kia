@@ -3,10 +3,11 @@
 from datetime import datetime
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 
 from brain_core.config import settings
+from brain_core.trace_context import set_trace_context
 from brain_core.types import Context
 from brain_memory.models import Episode, Fact, Skill
 
@@ -31,6 +32,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def trace_context_middleware(request: Request, call_next: Any) -> Any:
+    """Attach session + user (from Cloudflare Access) to all LLM traces for this request."""
+    user = request.headers.get("x-auth-user") or request.headers.get(
+        "cf-access-authenticated-user-email"
+    )
+    session_id = request.query_params.get("session_id") or request.headers.get("x-session-id")
+    set_trace_context(session_id=session_id, user_id=user)
+    return await call_next(request)
+
+
+def _llm_error(e: Exception) -> HTTPException:
+    """Turn an LLM provider failure into an actionable 502 instead of a bare 500."""
+    hint = (
+        "LLM call failed. Configure a commercial key (e.g. ANTHROPIC_API_KEY) in .env, "
+        "or ensure local Ollama has the model pulled (e.g. `ollama pull llama3.2:3b`) and "
+        "OLLAMA_MODEL/DEFAULT_OSS_MODEL match it."
+    )
+    return HTTPException(status_code=502, detail=f"{type(e).__name__}: {e} | {hint}")
 
 
 @app.get("/health")
@@ -167,7 +189,10 @@ async def run_orchestrator(goal: str, session_id: str = "default") -> dict[str, 
 
 @app.post("/api/v1/llm/generate")
 async def generate_text(
-    prompt: str, task_type: str = "simple", model: str | None = None
+    prompt: str,
+    task_type: str = "simple",
+    model: str | None = None,
+    session_id: str | None = None,
 ) -> dict[str, str]:
     """Generate text using LLM router."""
     from brain_core.llm import LLMRouter
@@ -177,7 +202,7 @@ async def generate_text(
         response = await router.generate(prompt, task_type, model)
         return {"response": response}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _llm_error(e)
 
 
 @app.get("/api/v1/llm/route")
@@ -219,7 +244,9 @@ async def retrieve_context(query: str, top_k: int = 5) -> list[dict[str, Any]]:
 
 
 @app.post("/api/v1/knowledge/rag")
-async def rag_query(question: str, model: str | None = None) -> dict[str, str]:
+async def rag_query(
+    question: str, model: str | None = None, session_id: str | None = None
+) -> dict[str, str]:
     """Answer a question using RAG."""
     from brain_knowledge.rag import RAGEngine
 
@@ -228,4 +255,4 @@ async def rag_query(question: str, model: str | None = None) -> dict[str, str]:
         answer = await rag.query(question, model)
         return {"answer": answer}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        raise _llm_error(e)

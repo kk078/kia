@@ -44,6 +44,11 @@ export default {
     for (const h of HOP_BY_HOP) headers.delete(h);
     headers.set("Host", new URL(origin).host);
 
+    // Forward the authenticated user's email (set by Access on the app) so the
+    // backend can attribute traces, surviving the origin Access service-token hop.
+    const authedEmail = request.headers.get("cf-access-authenticated-user-email");
+    if (authedEmail) headers.set("x-auth-user", authedEmail);
+
     // Inject Access service-token credentials so the origin accepts the call.
     if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
       headers.set("CF-Access-Client-Id", env.CF_ACCESS_CLIENT_ID);

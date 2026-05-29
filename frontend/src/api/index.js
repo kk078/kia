@@ -7,11 +7,15 @@ const api = axios.create({
   }
 })
 
+// One session id per page load — groups this conversation's traces in Langfuse Sessions.
+const SESSION_ID =
+  (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())
+
 export default {
   // LLM
   generate(prompt, taskType = 'simple', model = null) {
     return api.post('/llm/generate', null, {
-      params: { prompt, task_type: taskType, model }
+      params: { prompt, task_type: taskType, model, session_id: SESSION_ID }
     })
   },
 
@@ -57,12 +61,12 @@ export default {
   },
   ragQuery(question, model = null) {
     return api.post('/knowledge/rag', null, {
-      params: { question, model }
+      params: { question, model, session_id: SESSION_ID }
     })
   },
 
   // Orchestrator
-  runOrchestrator(goal, sessionId = 'default') {
+  runOrchestrator(goal, sessionId = SESSION_ID) {
     return api.post('/orchestrator/run', null, {
       params: { goal, session_id: sessionId }
     })
