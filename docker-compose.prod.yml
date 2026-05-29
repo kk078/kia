@@ -134,6 +134,10 @@ services:
       VERIFY_ENABLED: ${VERIFY_ENABLED:-false}
       VERIFY_SAMPLES: ${VERIFY_SAMPLES:-3}
       KIA_CODER_MODEL: ${KIA_CODER_MODEL:-}
+      TRAINING_CAPTURE_ENABLED: ${TRAINING_CAPTURE_ENABLED:-true}
+      TRAINING_CAPTURE_PATH: ${TRAINING_CAPTURE_PATH:-/app/data/kia_train.jsonl}
+    volumes:
+      - ./data:/app/data
     depends_on:
       redis:
         condition: service_healthy

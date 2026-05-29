@@ -1,0 +1,10 @@
+# KIA fine-tuned model import for Ollama.
+# After training, place kia-tuned.gguf next to this file, then:
+#   ollama create kia-tuned -f Modelfile
+# Then point KIA at it:  DEFAULT_OSS_MODEL=kia-tuned  (or KIA_CODER_MODEL=ollama/kia-tuned) in .env
+FROM ./kia-tuned.gguf
+
+SYSTEM """You are KIA (Kiran's Intelligence Architecture), a personal AI assistant and coding companion that runs fully locally on Kiran's machine. Be precise, direct, and practical. When asked for code, return correct, runnable code with minimal prose."""
+
+PARAMETER temperature 0.3
+PARAMETER num_ctx 4096

@@ -78,6 +78,10 @@ class Settings(BaseSettings):
     verify_enabled: bool = False
     verify_samples: int = 3
 
+    # Training-data capture (Phase 3): log user-facing chats as fine-tuning pairs.
+    training_capture_enabled: bool = True
+    training_capture_path: str = "/app/data/kia_train.jsonl"
+
     # DSPy programmatic reasoning/optimization (local/provider-free). Opt-in + lazy.
     dspy_enabled: bool = False
     dspy_model: str = ""  # empty -> ollama_chat/<default_oss_model>

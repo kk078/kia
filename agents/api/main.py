@@ -12,6 +12,7 @@ from api.openai_compat import router as openai_router
 from brain_core.config import settings
 from brain_core.persona import KIA_SYSTEM
 from brain_core.trace_context import set_trace_context
+from brain_core.training_capture import capture, stats
 from brain_core.types import Context
 from brain_memory.models import Episode, Fact, Skill
 
@@ -214,6 +215,7 @@ async def generate_text(
             )
         else:
             response = await router.generate(prompt, task_type, model, system=KIA_SYSTEM)
+        capture(prompt, response, source="chat", model=model or "")
         return {"response": response}
     except Exception as e:
         raise _llm_error(e)
@@ -240,6 +242,12 @@ async def route_task(task_type: str) -> dict[str, str]:
     router = LLMRouter()
     model = router.route(task_type)
     return {"task_type": task_type, "model": model}
+
+
+@app.get("/api/v1/training/stats")
+async def training_stats() -> dict[str, Any]:
+    """Stats about the captured fine-tuning dataset (Phase 3 capture loop)."""
+    return stats()
 
 
 @app.post("/api/v1/knowledge/index")

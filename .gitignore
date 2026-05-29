@@ -86,3 +86,6 @@ docker-compose.override.yml
 .dev.vars
 .env.production
 *.bak
+
+# KIA captured training data
+data/

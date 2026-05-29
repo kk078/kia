@@ -25,6 +25,7 @@ from brain_core.config import settings
 from brain_core.llm import LLMRouter
 from brain_core.persona import KIA_SYSTEM as KIA_PERSONA
 from brain_core.security import sanitize_untrusted, wrap_untrusted
+from brain_core.training_capture import capture
 from brain_knowledge.retriever import ContextRetriever
 
 router = APIRouter()
@@ -227,6 +228,7 @@ async def chat_completions(req: ChatRequest) -> Any:
         text = await router_.generate_verified(
             prompt, task_type="research", model=model, system=KIA_PERSONA
         )
+        capture(last_user, text, source="v1-brain", model=req.model)
         if req.stream:
             return StreamingResponse(
                 _stream_text(text, req.model), media_type="text/event-stream"
@@ -243,4 +245,6 @@ async def chat_completions(req: ChatRequest) -> Any:
     usage = getattr(resp, "usage", None)
     pt = getattr(usage, "prompt_tokens", 0) or 0
     ct = getattr(usage, "completion_tokens", 0) or 0
+    last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
+    capture(last_user, text, source="v1", model=req.model)
     return _completion(text, req.model, pt, ct)
