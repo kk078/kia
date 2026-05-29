@@ -1,7 +1,10 @@
 """Document indexer using LlamaIndex."""
 
+import uuid
+
 from llama_index.core import Document as LlamaDocument
 from llama_index.core import VectorStoreIndex
+from llama_index.core.node_parser import SentenceSplitter
 
 from brain_core.security import sanitize_untrusted
 from brain_knowledge.models import Document
@@ -15,6 +18,7 @@ class DocumentIndexer:
         """Initialize the document indexer."""
         self.vector_store = get_vector_store("Documents")
         self.index = VectorStoreIndex.from_vector_store(self.vector_store)
+        self._splitter = SentenceSplitter()
 
     async def index_document(self, document: Document) -> list[str]:
         """Index a document (sanitized against prompt injection) and return chunk IDs."""
@@ -22,8 +26,10 @@ class DocumentIndexer:
         if guard.blocked:
             # High-risk content is refused at the ingestion boundary.
             return []
+        doc_id = document.id or uuid.uuid4().hex
         llama_doc = LlamaDocument(
             text=guard.clean_text,
+            id_=doc_id,
             metadata={
                 "source": document.source,
                 "timestamp": document.timestamp.isoformat(),
@@ -32,8 +38,12 @@ class DocumentIndexer:
                 **document.metadata,
             },
         )
-        self.index.insert(llama_doc)
-        return [document.id] if document.id else []
+        # Chunk explicitly so we can report and return the real per-chunk IDs.
+        nodes = self._splitter.get_nodes_from_documents([llama_doc])
+        if not nodes:
+            return []
+        self.index.insert_nodes(nodes)
+        return [n.node_id for n in nodes]
 
     async def index_documents(self, documents: list[Document]) -> list[str]:
         """Index multiple documents and return chunk IDs."""
