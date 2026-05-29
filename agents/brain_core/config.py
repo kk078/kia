@@ -56,5 +56,10 @@ class Settings(BaseSettings):
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
 
+    # Security guard (prompt-injection defense on untrusted content)
+    guard_enabled: bool = True
+    guard_action: str = "flag"  # flag | redact | block
+    guard_block_threshold: int = 80
+
 
 settings = Settings()

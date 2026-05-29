@@ -1,6 +1,7 @@
 """RAG (Retrieval-Augmented Generation) engine."""
 
 from brain_core.llm import LLMRouter
+from brain_core.security import sanitize_untrusted, wrap_untrusted
 from brain_knowledge.retriever import ContextRetriever
 
 
@@ -14,14 +15,14 @@ class RAGEngine:
 
     async def query(self, question: str, model: str | None = None) -> str:
         """Answer a question using RAG."""
-        # Retrieve relevant context
+        # Retrieve relevant context, then sanitize each chunk (untrusted content).
         chunks = await self.retriever.retrieve_context(question, top_k=5)
-        context = "\n\n".join([chunk.content for chunk in chunks])
+        context = "\n\n".join(sanitize_untrusted(chunk.content).clean_text for chunk in chunks)
 
-        # Build prompt with context
+        # Build prompt with the context wrapped as untrusted data (injection-safe).
         system_prompt = (
-            "You are a helpful assistant. Use the following context to answer questions:\n\n"
-            + context
+            "You are a helpful assistant. Answer the user's question using only the "
+            "reference data provided below.\n\n" + wrap_untrusted(context, source="rag_context")
         )
         messages = [
             {"role": "system", "content": system_prompt},

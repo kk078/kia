@@ -5,6 +5,7 @@ from llama_index.core import VectorStoreIndex
 from llama_index.vector_stores.weaviate import WeaviateVectorStore
 
 from brain_core.config import settings
+from brain_core.security import sanitize_untrusted
 from brain_knowledge.models import Document
 
 
@@ -21,12 +22,18 @@ class DocumentIndexer:
         self.index = VectorStoreIndex.from_vector_store(self.vector_store)
 
     async def index_document(self, document: Document) -> list[str]:
-        """Index a document and return chunk IDs."""
+        """Index a document (sanitized against prompt injection) and return chunk IDs."""
+        guard = sanitize_untrusted(document.content)
+        if guard.blocked:
+            # High-risk content is refused at the ingestion boundary.
+            return []
         llama_doc = LlamaDocument(
-            text=document.content,
+            text=guard.clean_text,
             metadata={
                 "source": document.source,
                 "timestamp": document.timestamp.isoformat(),
+                "guard_risk": guard.risk,
+                "guard_findings": ",".join(f.kind for f in guard.findings),
                 **document.metadata,
             },
         )
