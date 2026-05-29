@@ -1,5 +1,6 @@
 """Python FastAPI Gateway for Secondary Brain."""
 
+import traceback
 from datetime import datetime
 from typing import Any
 
@@ -47,6 +48,7 @@ async def trace_context_middleware(request: Request, call_next: Any) -> Any:
 
 def _llm_error(e: Exception) -> HTTPException:
     """Turn an LLM provider failure into an actionable 502 instead of a bare 500."""
+    traceback.print_exc()  # surface the real litellm/provider error in container logs
     hint = (
         "LLM call failed. Configure a commercial key (e.g. ANTHROPIC_API_KEY) in .env, "
         "or ensure local Ollama has the model pulled (e.g. `ollama pull llama3.2:3b`) and "
