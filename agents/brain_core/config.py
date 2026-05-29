@@ -74,7 +74,4 @@ class Settings(BaseSettings):
 
     # DSPy programmatic reasoning/optimization (local/provider-free). Opt-in + lazy.
     dspy_enabled: bool = False
-    dspy_model: str = ""  # empty -> ollama_chat/<default_oss_model>
-
-
-settings = Settings()
+    dspy_model: s
