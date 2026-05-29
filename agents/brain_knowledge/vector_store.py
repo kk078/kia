@@ -1,0 +1,30 @@
+"""Shared Weaviate client / vector-store factory for the knowledge layer.
+
+Centralizes the v4 client connection (parsed from ``settings.weaviate_url``) so
+the indexer and retriever use a real, connected client instead of ``None``.
+"""
+
+from __future__ import annotations
+
+from typing import Any
+
+import weaviate
+from llama_index.vector_stores.weaviate import WeaviateVectorStore
+from weaviate.classes.init import AdditionalConfig
+
+from brain_core.config import settings
+
+
+def get_weaviate_client() -> Any:
+    """Connect a Weaviate v4 client from settings.weaviate_url (http host:port)."""
+    url = settings.weaviate_url.replace("http://", "").replace("https://", "")
+    host, _, port_str = url.partition(":")
+    port = int(port_str) if port_str else 8080
+    return weaviate.connect_to_local(
+        host=host or "localhost", port=port, additional_config=AdditionalConfig()
+    )
+
+
+def get_vector_store(index_name: str = "Documents") -> Any:
+    """Return a LlamaIndex WeaviateVectorStore backed by a real client."""
+    return WeaviateVectorStore(weaviate_client=get_weaviate_client(), index_name=index_name)

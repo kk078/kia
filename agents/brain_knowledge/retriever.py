@@ -1,10 +1,9 @@
 """Context retriever for RAG operations."""
 
 from llama_index.core import VectorStoreIndex
-from llama_index.vector_stores.weaviate import WeaviateVectorStore
 
-from brain_core.config import settings
 from brain_knowledge.models import Chunk
+from brain_knowledge.vector_store import get_vector_store
 
 
 class ContextRetriever:
@@ -12,11 +11,7 @@ class ContextRetriever:
 
     def __init__(self) -> None:
         """Initialize the context retriever."""
-        self.vector_store = WeaviateVectorStore(
-            weaviate_client=None,
-            index_name="Documents",
-            url=settings.weaviate_url,
-        )
+        self.vector_store = get_vector_store("Documents")
         self.index = VectorStoreIndex.from_vector_store(self.vector_store)
         self.retriever = self.index.as_retriever(similarity_top_k=5)
 

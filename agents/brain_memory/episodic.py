@@ -81,8 +81,8 @@ class EpisodicMemory:
                     timestamp=datetime.fromisoformat(
                         str(props.get("timestamp", datetime.utcnow().isoformat()))
                     ),
-                    context=dict(props.get("context", {})),  # type: ignore[arg-type]
-                    metadata=dict(props.get("metadata", {})),  # type: ignore[arg-type]
+                    context=dict(props.get("context") or {}),  # type: ignore[arg-type]
+                    metadata=dict(props.get("metadata") or {}),  # type: ignore[arg-type]
                 )
             )
         return episodes
