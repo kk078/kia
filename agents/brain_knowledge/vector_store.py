@@ -27,9 +27,11 @@ def _configure_local_embeddings() -> None:
     from llama_index.core import Settings
     from llama_index.embeddings.ollama import OllamaEmbedding
 
-    embed = OllamaEmbedding(model_name=settings.embed_model, base_url=settings.ollama_base_url)
-    # setattr avoids static attribute checks while still invoking LlamaIndex's setter
-    setattr(Settings, "embed_model", embed)
+    # Assign through an Any alias so static checks don't gate the dynamic Settings attr.
+    li_settings: Any = Settings
+    li_settings.embed_model = OllamaEmbedding(
+        model_name=settings.embed_model, base_url=settings.ollama_base_url
+    )
     _embed_configured = True
 
 
