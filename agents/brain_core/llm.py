@@ -1,5 +1,6 @@
 """LLM provider abstraction using litellm."""
 
+import os
 import time
 from typing import Any
 
@@ -71,6 +72,28 @@ class LLMRouter:
             },
         }
 
+        self._setup_langfuse()
+
+    def _setup_langfuse(self) -> None:
+        """Enable litellm's native Langfuse callback for automatic LLM tracing.
+
+        Best practice for litellm apps: a single global callback captures model,
+        token usage, cost, latency, and input/output as Langfuse generations for
+        every litellm call across the app (router, crews, RAG). No-op if Langfuse
+        credentials are not configured.
+        """
+        if not (settings.langfuse_public_key and settings.langfuse_secret_key):
+            return
+        # litellm's Langfuse logger reads these env vars (host name is LANGFUSE_HOST)
+        os.environ.setdefault("LANGFUSE_PUBLIC_KEY", settings.langfuse_public_key)
+        os.environ.setdefault("LANGFUSE_SECRET_KEY", settings.langfuse_secret_key)
+        os.environ.setdefault("LANGFUSE_HOST", settings.langfuse_url)
+        for cb_name in ("success_callback", "failure_callback"):
+            cb = list(getattr(litellm, cb_name, None) or [])
+            if "langfuse" not in cb:
+                cb.append("langfuse")
+            setattr(litellm, cb_name, cb)
+
     @llm_traced(name="llm_complete")
     async def complete(
         self,
@@ -96,6 +119,17 @@ class LLMRouter:
             kwargs["api_base"] = oss_config["api_base"]
             if "api_key" not in kwargs:
                 kwargs["api_key"] = "sk-dummy"
+
+        # Langfuse generation metadata (litellm forwards this to the Langfuse callback).
+        # Callers may pass metadata={"session_id": ..., "trace_user_id": ..., "tags": [...]}.
+        lf_meta: dict[str, Any] = {
+            "generation_name": "llm_complete",
+            "tags": [f"env:{settings.environment}"],
+        }
+        caller_meta = kwargs.pop("metadata", None)
+        if isinstance(caller_meta, dict):
+            lf_meta.update(caller_meta)
+        kwargs["metadata"] = lf_meta
 
         response = await litellm.acompletion(
             model=model,

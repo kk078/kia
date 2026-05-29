@@ -85,3 +85,4 @@ docker-compose.override.yml
 *.dev.vars
 .dev.vars
 .env.production
+*.bak
