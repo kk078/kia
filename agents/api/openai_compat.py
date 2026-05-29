@@ -24,6 +24,8 @@ from pydantic import BaseModel
 from brain_core.config import settings
 from brain_core.llm import LLMRouter
 from brain_core.persona import KIA_SYSTEM as KIA_PERSONA
+from brain_core.security import sanitize_untrusted, wrap_untrusted
+from brain_knowledge.retriever import ContextRetriever
 
 router = APIRouter()
 
@@ -191,8 +193,26 @@ async def chat_completions(req: ChatRequest) -> Any:
     router_ = LLMRouter()
 
     if mode == "brain":
-        convo = "\n".join(f"{m['role']}: {m['content']}" for m in messages)
-        text = await router_.generate_verified(convo, task_type="research", model=model)
+        last_user = next(
+            (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
+        )
+        ctx_block = ""
+        try:
+            chunks = await ContextRetriever().retrieve_context(last_user, top_k=5)
+            clean = "\n\n".join(sanitize_untrusted(c.content).clean_text for c in chunks)
+            if clean.strip():
+                ctx_block = (
+                    "\n\nReference data retrieved from Kiran's knowledge base:\n"
+                    + wrap_untrusted(clean, source="kia_kb")
+                )
+        except Exception:
+            ctx_block = ""
+        convo = "\n".join(
+            f"{m['role']}: {m['content']}" for m in messages if m["role"] != "system"
+        )
+        text = await router_.generate_verified(
+            convo + ctx_block, task_type="research", model=model, system=KIA_PERSONA
+        )
         if req.stream:
             return StreamingResponse(
                 _stream_text(text, req.model), media_type="text/event-stream"

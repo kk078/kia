@@ -6,6 +6,7 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from api.openai_compat import router as openai_router
 from brain_core.config import settings
@@ -250,6 +251,28 @@ async def index_document(content: str, source: str) -> dict[str, Any]:
     try:
         indexer = DocumentIndexer()
         doc = Document(content=content, source=source)
+        chunk_ids = await indexer.index_document(doc)
+        return {"chunk_ids": chunk_ids, "status": "indexed"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class IngestItem(BaseModel):
+    """JSON body for ingesting large content (e.g. source files) without query limits."""
+
+    content: str
+    source: str
+
+
+@app.post("/api/v1/knowledge/ingest")
+async def ingest_document(item: IngestItem) -> dict[str, Any]:
+    """Index a document supplied via JSON body (for large content like code files)."""
+    from brain_knowledge.indexer import DocumentIndexer
+    from brain_knowledge.models import Document
+
+    try:
+        indexer = DocumentIndexer()
+        doc = Document(content=item.content, source=item.source)
         chunk_ids = await indexer.index_document(doc)
         return {"chunk_ids": chunk_ids, "status": "indexed"}
     except Exception as e:
