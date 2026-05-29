@@ -1,6 +1,6 @@
 # Cloudflare Pages config for the Secondary Brain frontend.
-# Pins the deploy to the correct account so it can't land in another one.
+# Account is pinned via the CLOUDFLARE_ACCOUNT_ID env var / CI secret
+# (Pages config files do NOT accept account_id).
 name = "kia"
-account_id = "2c268625d9e6e4c084ff296fcdf5f3bd"
 pages_build_output_dir = "dist"
 compatibility_date = "2024-11-01"
