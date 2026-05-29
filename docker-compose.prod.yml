@@ -84,7 +84,7 @@ services:
     environment:
       DATABASE_URL: postgresql://${LANGFUSE_DB_USER:-langfuse}:${LANGFUSE_DB_PASSWORD:-langfuse}@langfuse-db:5432/langfuse
       NEXTAUTH_SECRET: ${LANGFUSE_SECRET:-mysecret}
-      NEXTAUTH_URL: ${LANGFUSE_URL:-http://localhost:3000}
+      NEXTAUTH_URL: http://localhost:3000
       SALT: ${LANGFUSE_SALT:-mysalt}
       TELEMETRY_ENABLED: 'false'
       LANGFUSE_ENABLE_EXPERIMENTAL_FEATURES: 'false'
@@ -118,7 +118,7 @@ services:
       REDIS_URL: redis://redis:6379
       WEAVIATE_URL: http://weaviate:8080
       FALKORDB_URL: redis://falkordb:6379
-      LANGFUSE_URL: http://langfuse:3000
+      LANGFUSE_URL: ${LANGFUSE_URL:-http://langfuse:3000}
       LANGFUSE_PUBLIC_KEY: ${LANGFUSE_PUBLIC_KEY}
       LANGFUSE_SECRET_KEY: ${LANGFUSE_SECRET_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
