@@ -21,8 +21,9 @@ class RAGEngine:
 
         # Build prompt with the context wrapped as untrusted data (injection-safe).
         system_prompt = (
-            "You are a helpful assistant. Answer the user's question using only the "
-            "reference data provided below.\n\n" + wrap_untrusted(context, source="rag_context")
+            "You are KIA (Kiran's Intelligence Architecture), a personal AI assistant "
+            "running locally. Answer the user's question using only the reference data "
+            "provided below.\n\n" + wrap_untrusted(context, source="rag_context")
         )
         messages = [
             {"role": "system", "content": system_prompt},

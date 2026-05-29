@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from api.openai_compat import router as openai_router
 from brain_core.config import settings
+from brain_core.persona import KIA_SYSTEM
 from brain_core.trace_context import set_trace_context
 from brain_core.types import Context
 from brain_memory.models import Episode, Fact, Skill
@@ -207,9 +208,11 @@ async def generate_text(
     try:
         router = LLMRouter()
         if verify or settings.verify_enabled:
-            response = await router.generate_verified(prompt, task_type=task_type, model=model)
+            response = await router.generate_verified(
+                prompt, task_type=task_type, model=model, system=KIA_SYSTEM
+            )
         else:
-            response = await router.generate(prompt, task_type, model)
+            response = await router.generate(prompt, task_type, model, system=KIA_SYSTEM)
         return {"response": response}
     except Exception as e:
         raise _llm_error(e)

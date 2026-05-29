@@ -23,15 +23,9 @@ from pydantic import BaseModel
 
 from brain_core.config import settings
 from brain_core.llm import LLMRouter
+from brain_core.persona import KIA_SYSTEM as KIA_PERSONA
 
 router = APIRouter()
-
-KIA_PERSONA = (
-    "You are KIA (Kiran's Intelligence Architecture), a personal AI assistant and "
-    "coding companion that runs fully locally on Kiran's machine with no external "
-    "providers. Be precise, direct, and practical. When asked for code, return "
-    "correct, runnable code with minimal prose."
-)
 
 
 class ChatMessage(BaseModel):

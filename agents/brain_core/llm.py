@@ -314,6 +314,7 @@ class LLMRouter:
         prompt: str,
         task_type: str = "simple",
         model: str | None = None,
+        system: str | None = None,
         **kwargs: Any,
     ) -> str:
         """Generate a response for a prompt.
@@ -322,13 +323,17 @@ class LLMRouter:
             prompt: The prompt to generate from
             task_type: Type of task for routing
             model: Optional specific model to use
+            system: Optional system prompt (e.g. the KIA persona) prepended to messages
             **kwargs: Additional arguments
 
         Returns:
             Generated text response
         """
         selected_model = model or self.route(task_type)
-        messages = [{"role": "user", "content": prompt}]
+        messages: list[dict[str, str]] = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
 
         response = await self.complete(selected_model, messages, **kwargs)
         content: str = response.choices[0].message.content
@@ -340,6 +345,7 @@ class LLMRouter:
         task_type: str = "research",
         model: str | None = None,
         samples: int | None = None,
+        system: str | None = None,
         **kwargs: Any,
     ) -> str:
         """Generate with self-consistency: sample N candidates, then judge/merge.
@@ -349,11 +355,13 @@ class LLMRouter:
         """
         n = samples if samples is not None else settings.verify_samples
         if not settings.verify_enabled or n <= 1:
-            return await self.generate(prompt, task_type, model, **kwargs)
+            return await self.generate(prompt, task_type, model, system=system, **kwargs)
 
         candidates: list[str] = []
         for _ in range(n):
-            candidates.append(await self.generate(prompt, task_type, model, **kwargs))
+            candidates.append(
+                await self.generate(prompt, task_type, model, system=system, **kwargs)
+            )
 
         joined = "\n\n".join(f"Candidate {i + 1}:\n{c}" for i, c in enumerate(candidates))
         judge_prompt = (
@@ -363,4 +371,4 @@ class LLMRouter:
             "answer.\n\n"
             f"Task:\n{prompt}\n\n{joined}\n\nFinal verified answer:"
         )
-        return await self.generate(judge_prompt, task_type="synthesis", model=model)
+        return await self.generate(judge_prompt, task_type="synthesis", model=model, system=system)
