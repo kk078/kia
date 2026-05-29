@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from brain_core.config import settings
@@ -37,7 +37,7 @@ def capture(
         "meta": {
             "source": source,
             "model": model or "",
-            "ts": datetime.now(timezone.utc).isoformat(),
+            "ts": datetime.now(UTC).isoformat(),
             **(metadata or {}),
         },
     }
