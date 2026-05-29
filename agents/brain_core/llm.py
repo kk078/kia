@@ -242,7 +242,7 @@ class LLMRouter:
 
         # Prefer a configured commercial provider (better quality); fall back to OSS.
         if settings.anthropic_api_key:
-            strong, fast = "anthropic/claude-3-5-sonnet-20241022", "anthropic/claude-3-haiku-20240307"
+            strong, fast = "anthropic/claude-sonnet-4-6", "anthropic/claude-haiku-4-5-20251001"
         elif settings.openai_api_key:
             strong, fast = "openai/gpt-4-turbo", "openai/gpt-3.5-turbo"
         else:
