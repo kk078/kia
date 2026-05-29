@@ -27,7 +27,7 @@ def _configure_local_embeddings() -> None:
     from llama_index.core import Settings
     from llama_index.embeddings.ollama import OllamaEmbedding
 
-    Settings.embed_model = OllamaEmbedding(
+    Settings.embed_model = OllamaEmbedding(  # type: ignore[attr-defined]
         model_name=settings.embed_model,
         base_url=settings.ollama_base_url,
     )
