@@ -1,9 +1,17 @@
 <template>
   <div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-bold mb-6">
-      <i class="fas fa-comments text-blue-500 mr-3"></i>
-      Chat with Brain
-    </h1>
+    <div class="flex items-center justify-between mb-6">
+      <h1 class="text-3xl font-bold">
+        <i class="fas fa-comments text-blue-500 mr-3"></i>
+        Chat with Brain
+      </h1>
+      <button
+        @click="newChat"
+        class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg text-sm transition-colors"
+      >
+        <i class="fas fa-plus mr-2"></i>New chat
+      </button>
+    </div>
 
     <div class="bg-gray-800 rounded-lg shadow-lg p-6 mb-4 h-[600px] flex flex-col">
       <div ref="messagesContainer" class="flex-1 overflow-y-auto mb-4 space-y-4">
@@ -112,5 +120,11 @@ const sendMessage = async () => {
     loading.value = false
     scrollToBottom()
   }
+}
+
+const newChat = () => {
+  messages.value = []
+  input.value = ''
+  api.newSession()
 }
 </script>

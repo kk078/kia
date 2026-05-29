@@ -7,15 +7,26 @@ const api = axios.create({
   }
 })
 
-// One session id per page load — groups this conversation's traces in Langfuse Sessions.
-const SESSION_ID =
+// Session id groups a conversation's traces in Langfuse Sessions.
+// Call newSession() when starting a new chat so each conversation is its own session.
+const genId = () =>
   (typeof crypto !== 'undefined' && crypto.randomUUID) ? crypto.randomUUID() : String(Date.now())
+let sessionId = genId()
 
 export default {
+  // Start a new conversation/session (new Langfuse session grouping)
+  newSession() {
+    sessionId = genId()
+    return sessionId
+  },
+  currentSession() {
+    return sessionId
+  },
+
   // LLM
   generate(prompt, taskType = 'simple', model = null) {
     return api.post('/llm/generate', null, {
-      params: { prompt, task_type: taskType, model, session_id: SESSION_ID }
+      params: { prompt, task_type: taskType, model, session_id: sessionId }
     })
   },
 
@@ -61,14 +72,14 @@ export default {
   },
   ragQuery(question, model = null) {
     return api.post('/knowledge/rag', null, {
-      params: { question, model, session_id: SESSION_ID }
+      params: { question, model, session_id: sessionId }
     })
   },
 
   // Orchestrator
-  runOrchestrator(goal, sessionId = SESSION_ID) {
+  runOrchestrator(goal, sid = sessionId) {
     return api.post('/orchestrator/run', null, {
-      params: { goal, session_id: sessionId }
+      params: { goal, session_id: sid }
     })
   },
 
