@@ -83,6 +83,8 @@ class LLMRouter:
         every litellm call across the app (router, crews, RAG). No-op if Langfuse
         credentials are not configured.
         """
+        if not settings.litellm_langfuse_callback:
+            return
         if not (settings.langfuse_public_key and settings.langfuse_secret_key):
             return
         # litellm's Langfuse logger reads these env vars (host name is LANGFUSE_HOST)

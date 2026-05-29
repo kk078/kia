@@ -55,6 +55,9 @@ class Settings(BaseSettings):
     # Langfuse
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
+    # litellm->Langfuse auto-tracing. OFF by default: a litellm/langfuse version
+    # mismatch can raise on every call and break generation. App tracing is separate.
+    litellm_langfuse_callback: bool = False
 
     # Security guard (prompt-injection defense on untrusted content)
     guard_enabled: bool = True
