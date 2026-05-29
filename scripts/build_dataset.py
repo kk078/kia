@@ -67,8 +67,17 @@ def load_captured(path: str) -> list[dict]:
     return out
 
 
-def repo_pairs(root: str, url: str, model: str, key: str) -> list[dict]:
+QUESTION_TEMPLATES = [
+    "In this codebase, what does the file `{rel}` do? Explain its responsibilities and key functions.",
+    "How do I use the main class or function defined in `{rel}`? Give a short, correct example.",
+    "What are the important implementation details, edge cases, or gotchas in `{rel}`?",
+    "Write a concise unit test for a key function in `{rel}`.",
+]
+
+
+def repo_pairs(root: str, url: str, model: str, key: str, per_file: int = 3) -> list[dict]:
     pairs = []
+    templates = QUESTION_TEMPLATES[: max(1, min(per_file, len(QUESTION_TEMPLATES)))]
     for dp, dirs, files in os.walk(root):
         dirs[:] = [d for d in dirs if d not in SKIP_DIRS]
         for name in files:
@@ -86,19 +95,20 @@ def repo_pairs(root: str, url: str, model: str, key: str) -> list[dict]:
                 continue
             if not code.strip():
                 continue
-            q = f"In this codebase, what does the file `{rel}` do? Explain its key functions."
-            ctx = (f"Answer using only this file.\n\nFile: {rel}\n```\n{code[:MAX_BYTES]}\n```\n\n"
-                   f"Question: {q}")
-            try:
-                ans = teacher_answer(url, model, key, ctx)
-            except Exception as e:
-                print(f"  !! teacher failed on {rel}: {e}")
-                continue
-            pairs.append({"messages": [
-                {"role": "user", "content": q},
-                {"role": "assistant", "content": ans},
-            ]})
-            print(f"  + {rel}")
+            for tmpl in templates:
+                q = tmpl.format(rel=rel)
+                ctx = (f"You are studying Kiran's codebase. Answer using only this file.\n\n"
+                       f"File: {rel}\n```\n{code[:MAX_BYTES]}\n```\n\nQuestion: {q}")
+                try:
+                    ans = teacher_answer(url, model, key, ctx)
+                except Exception as e:
+                    print(f"  !! teacher failed on {rel} ({q[:40]}...): {e}")
+                    continue
+                pairs.append({"messages": [
+                    {"role": "user", "content": q},
+                    {"role": "assistant", "content": ans},
+                ]})
+            print(f"  + {rel}  ({len(templates)} q)")
     return pairs
 
 
@@ -123,6 +133,7 @@ def main() -> None:
     ap.add_argument("--teacher-url", default="")
     ap.add_argument("--teacher-model", default="")
     ap.add_argument("--teacher-key", default=os.getenv("TEACHER_KEY", ""))
+    ap.add_argument("--per-file", type=int, default=3, help="questions per file (1-4)")
     args = ap.parse_args()
 
     records = load_captured(args.captured)
@@ -133,7 +144,7 @@ def main() -> None:
             print("--repo needs --teacher-url and --teacher-model; skipping repo pairs.")
         else:
             print(f"Generating repo Q&A from {args.repo} via teacher {args.teacher_model}...")
-            records += repo_pairs(args.repo, args.teacher_url, args.teacher_model, args.teacher_key)
+            records += repo_pairs(args.repo, args.teacher_url, args.teacher_model, args.teacher_key, args.per_file)
 
     records = dedupe(records)
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)
