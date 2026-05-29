@@ -1,20 +1,14 @@
 /**
  * Secondary Brain — edge API proxy + auth gate
  *
- * kia.aetherahealthcare.com/api/* and /health are routed here. Cloudflare Access
- * is BYPASSED on these paths (so it never 302-redirects an XHR, which browsers
- * can't follow cross-origin). Instead this Worker validates the Cloudflare Access
- * session JWT (the CF_Authorization cookie set when the user logs into the SPA)
- * against the team JWKS, returning a clean 401 JSON when unauthenticated.
- *
- * Authenticated requests are forwarded over the Cloudflare Tunnel to the local
- * backend; the locked origin is reached using an Access service token.
+ * kia.aetherahealthcare.com/api/* and /health route here. Cloudflare Access is
+ * BYPASSED on these paths so it never 302-redirects an XHR; this Worker instead
+ * validates the Cloudflare Access session JWT (CF_Authorization cookie) against
+ * the team JWKS and returns a clean 401 when unauthenticated. /health is public.
+ * Authenticated requests are forwarded over the Tunnel to the local backend,
+ * reaching the locked origin with an Access service token.
  */
 
-const ACCESS_TEAM_DOMAIN = "aetheraonline.cloudflareaccess.com";
-// AUDs of the Access apps in this deployment (kia root + bypass apps + tunnel origin).
-// The session cookie is shared across the *.aetherahealthcare.com zone, so its aud may
-// be any of these depending on which app last issued it.
 const ACCESS_AUDS = [
   "0b5343b0a6d3ecf2391a4de18da6f0285d977ef59407b6865865bfb1fcf984e0", // kia root (SPA login)
   "d4c828f04e9657a7540eeefab158317d33301e6a11a81eaccf88b5b58b7c2a0b", // kia /api (bypass)
@@ -22,10 +16,11 @@ const ACCESS_AUDS = [
   "e4e16512e7ac821b88ae0a91ba24e899efef1fd248c22cfdbadec78596c2a381", // origin tunnel
 ];
 const ACCESS_ISS = "https://aetheraonline.cloudflareaccess.com";
+const ACCESS_TEAM_DOMAIN = "aetheraonline.cloudflareaccess.com";
 
 const HOP_BY_HOP = new Set([
   "connection", "keep-alive", "proxy-authenticate", "proxy-authorization",
-  "te", "trailer", "transfer-encoding", "upgrade",
+  "te", "trailer", "transfer-encoding", "upgrade", "content-length", "host",
 ]);
 
 let _jwks = null;
@@ -33,68 +28,78 @@ let _jwksAt = 0;
 
 export default {
   async fetch(request, env) {
-    const url = new URL(request.url);
-
-    if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders(env) });
-    }
-
-    const isHealth = url.pathname === "/health" || url.pathname.startsWith("/health/");
-
-    let userEmail = null;
-    if (!isHealth) {
-      // Require a valid Access session for /api/*
-      const cookieHeader = request.headers.get("Cookie") || "";
-      const cookieNames = cookieHeader.split(";").map((c) => c.split("=")[0].trim()).filter(Boolean);
-      const token = getAccessToken(request);
-      const res = token ? await verifyAccessJwt(token) : { ok: false, reason: "no_token" };
-      if (!res.ok) {
-        return json(
-          {
-            error: "unauthorized",
-            reason: res.reason,
-            cookies_seen: cookieNames,
-            token_aud: res.aud || null,
-            expected_aud: ACCESS_AUDS,
-          },
-          401,
-          env
-        );
-      }
-      userEmail = res.payload.email || null;
-    }
-
-    const origin = (env.BACKEND_ORIGIN || "").replace(/\/$/, "");
-    if (!origin) return json({ error: "BACKEND_ORIGIN not configured" }, 500, env);
-    const upstreamUrl = origin + url.pathname + url.search;
-
-    const headers = new Headers(request.headers);
-    for (const h of HOP_BY_HOP) headers.delete(h);
-    headers.set("Host", new URL(origin).host);
-    if (userEmail) headers.set("x-auth-user", userEmail);
-    if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
-      headers.set("CF-Access-Client-Id", env.CF_ACCESS_CLIENT_ID);
-      headers.set("CF-Access-Client-Secret", env.CF_ACCESS_CLIENT_SECRET);
-    }
-
-    let resp;
     try {
-      resp = await fetch(upstreamUrl, {
-        method: request.method,
-        headers,
-        body: ["GET", "HEAD"].includes(request.method) ? undefined : request.body,
-        redirect: "manual",
-      });
-    } catch (err) {
-      return json({ error: "upstream_unreachable", detail: String(err) }, 502, env);
-    }
+      const url = new URL(request.url);
 
-    const outHeaders = new Headers(resp.headers);
-    for (const h of HOP_BY_HOP) outHeaders.delete(h);
-    for (const [k, v] of Object.entries(corsHeaders(env))) outHeaders.set(k, v);
-    outHeaders.set("X-Content-Type-Options", "nosniff");
-    outHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
-    return new Response(resp.body, { status: resp.status, statusText: resp.statusText, headers: outHeaders });
+      if (request.method === "OPTIONS") {
+        return new Response(null, { status: 204, headers: corsHeaders(env) });
+      }
+
+      const isHealth = url.pathname === "/health" || url.pathname.startsWith("/health/");
+
+      let userEmail = null;
+      if (!isHealth) {
+        const cookieHeader = request.headers.get("Cookie") || "";
+        const cookieNames = cookieHeader.split(";").map((c) => c.split("=")[0].trim()).filter(Boolean);
+        const token = getAccessToken(request);
+        const res = token ? await verifyAccessJwt(token) : { ok: false, reason: "no_token" };
+        if (!res.ok) {
+          return json(
+            { error: "unauthorized", reason: res.reason, cookies_seen: cookieNames, token_aud: res.aud || null },
+            401,
+            env
+          );
+        }
+        userEmail = res.payload.email || null;
+      }
+
+      const origin = (env.BACKEND_ORIGIN || "").replace(/\/$/, "");
+      if (!origin) return json({ error: "BACKEND_ORIGIN not configured" }, 500, env);
+      const upstreamUrl = origin + url.pathname + url.search;
+
+      const headers = new Headers();
+      // copy a safe subset of inbound headers
+      for (const [k, v] of request.headers) {
+        if (!HOP_BY_HOP.has(k.toLowerCase())) headers.set(k, v);
+      }
+      headers.set("Host", new URL(origin).host);
+      if (userEmail) headers.set("x-auth-user", userEmail);
+      if (env.CF_ACCESS_CLIENT_ID && env.CF_ACCESS_CLIENT_SECRET) {
+        headers.set("CF-Access-Client-Id", env.CF_ACCESS_CLIENT_ID);
+        headers.set("CF-Access-Client-Secret", env.CF_ACCESS_CLIENT_SECRET);
+      }
+
+      // Buffer the request body (avoids streaming/duplex issues that 502 on POST).
+      let body;
+      if (!["GET", "HEAD"].includes(request.method)) {
+        body = await request.arrayBuffer();
+      }
+
+      let resp;
+      try {
+        resp = await fetch(upstreamUrl, { method: request.method, headers, body, redirect: "manual" });
+      } catch (err) {
+        return json({ error: "upstream_unreachable", detail: String(err) }, 502, env);
+      }
+
+      // Buffer the upstream response too, then return — avoids stream-delivery 520s.
+      const buf = await resp.arrayBuffer();
+      const outHeaders = new Headers();
+      for (const [k, v] of resp.headers) {
+        if (!HOP_BY_HOP.has(k.toLowerCase()) && k.toLowerCase() !== "content-encoding") {
+          outHeaders.set(k, v);
+        }
+      }
+      for (const [k, v] of Object.entries(corsHeaders(env))) outHeaders.set(k, v);
+      outHeaders.set("X-Content-Type-Options", "nosniff");
+      outHeaders.set("Referrer-Policy", "strict-origin-when-cross-origin");
+      return new Response(buf, { status: resp.status, statusText: resp.statusText, headers: outHeaders });
+    } catch (e) {
+      return new Response(JSON.stringify({ error: "worker_exception", detail: String(e) }), {
+        status: 500,
+        headers: { "Content-Type": "application/json", "Access-Control-Allow-Origin": env.ALLOWED_ORIGIN || "*" },
+      });
+    }
   },
 };
 
@@ -133,12 +138,9 @@ async function verifyAccessJwt(token) {
     const header = JSON.parse(new TextDecoder().decode(b64url(h)));
     const payload = JSON.parse(new TextDecoder().decode(b64url(p)));
     const auds = Array.isArray(payload.aud) ? payload.aud : [payload.aud];
-    if (!payload.exp || payload.exp * 1000 < Date.now())
-      return { ok: false, reason: "expired", aud: auds };
-    if (payload.iss && payload.iss !== ACCESS_ISS)
-      return { ok: false, reason: "iss_mismatch", aud: auds };
-    if (!auds.some((a) => ACCESS_AUDS.includes(a)))
-      return { ok: false, reason: "aud_mismatch", aud: auds };
+    if (!payload.exp || payload.exp * 1000 < Date.now()) return { ok: false, reason: "expired", aud: auds };
+    if (payload.iss && payload.iss !== ACCESS_ISS) return { ok: false, reason: "iss_mismatch", aud: auds };
+    if (!auds.some((a) => ACCESS_AUDS.includes(a))) return { ok: false, reason: "aud_mismatch", aud: auds };
     const jwk = (await getJwks()).find((k) => k.kid === header.kid);
     if (!jwk) return { ok: false, reason: "no_jwk_for_kid", aud: auds };
     const key = await crypto.subtle.importKey(
