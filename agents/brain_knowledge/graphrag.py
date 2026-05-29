@@ -50,7 +50,7 @@ class GraphRAGEngine:
 
     def _build(self) -> Any:
         """Construct a GraphRAG instance (lazy import; raises if SDK absent)."""
-        from graphrag_sdk import (  # type: ignore[import-not-found]
+        from graphrag_sdk import (
             ConnectionConfig,
             GraphRAG,
             LiteLLM,
