@@ -202,7 +202,7 @@ async def generate_text(
 
     try:
         router = LLMRouter()
-        if verify:
+        if verify or settings.verify_enabled:
             response = await router.generate_verified(prompt, task_type=task_type, model=model)
         else:
             response = await router.generate(prompt, task_type, model)

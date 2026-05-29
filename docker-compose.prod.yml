@@ -131,6 +131,8 @@ services:
       DEFAULT_OSS_MODEL: ${DEFAULT_OSS_MODEL:-llama3.1}
       ENVIRONMENT: production
       LOG_LEVEL: INFO
+      VERIFY_ENABLED: ${VERIFY_ENABLED:-false}
+      VERIFY_SAMPLES: ${VERIFY_SAMPLES:-3}
     depends_on:
       redis:
         condition: service_healthy
