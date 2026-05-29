@@ -196,22 +196,36 @@ async def chat_completions(req: ChatRequest) -> Any:
         last_user = next(
             (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
         )
-        ctx_block = ""
+        ctx = ""
         try:
-            chunks = await ContextRetriever().retrieve_context(last_user, top_k=5)
-            clean = "\n\n".join(sanitize_untrusted(c.content).clean_text for c in chunks)
-            if clean.strip():
-                ctx_block = (
-                    "\n\nReference data retrieved from Kiran's knowledge base:\n"
-                    + wrap_untrusted(clean, source="kia_kb")
-                )
+            chunks = await ContextRetriever().retrieve_context(last_user, top_k=8)
+            parts: list[str] = []
+            for c in chunks:
+                src = c.metadata.get("source") or c.document_id or "unknown"
+                clean = sanitize_untrusted(c.content).clean_text
+                if clean.strip():
+                    parts.append(f"# From {src}:\n{clean}")
+            ctx = "\n\n".join(parts)
         except Exception:
-            ctx_block = ""
+            ctx = ""
         convo = "\n".join(
             f"{m['role']}: {m['content']}" for m in messages if m["role"] != "system"
         )
+        if ctx.strip():
+            prompt = (
+                "Answer the user's question using ONLY the reference data below, which "
+                "comes from Kiran's codebase (a Python project). Cite the source file "
+                "paths you relied on. If the reference data does not contain the answer, "
+                "say you don't have that indexed instead of guessing.\n\n"
+                + wrap_untrusted(ctx, source="kia_kb")
+                + "\n\nConversation:\n"
+                + convo
+                + "\n\nAnswer:"
+            )
+        else:
+            prompt = convo
         text = await router_.generate_verified(
-            convo + ctx_block, task_type="research", model=model, system=KIA_PERSONA
+            prompt, task_type="research", model=model, system=KIA_PERSONA
         )
         if req.stream:
             return StreamingResponse(

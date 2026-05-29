@@ -45,6 +45,14 @@ def eligible(name: str) -> bool:
     return ext.lower() in EXTS or name in EXTRA_NAMES
 
 
+def clear_index(api: str) -> None:
+    req = urllib.request.Request(
+        api.rstrip("/") + "/api/v1/knowledge/clear", data=b"", method="POST"
+    )
+    with urllib.request.urlopen(req, timeout=120) as r:
+        r.read()
+
+
 def post(api: str, content: str, source: str) -> int:
     data = json.dumps({"content": content, "source": source}).encode()
     req = urllib.request.Request(
@@ -62,16 +70,27 @@ def main() -> None:
     args = list(sys.argv[1:])
     api = API
     root = "."
+    reindex = False
     i = 0
     while i < len(args):
         if args[i] == "--api" and i + 1 < len(args):
             api = args[i + 1]
             i += 2
+        elif args[i] == "--reindex":
+            reindex = True
+            i += 1
         else:
             root = args[i]
             i += 1
     root = os.path.abspath(root)
     print(f"Indexing {root} -> {api}")
+    if reindex:
+        print("Clearing existing index (--reindex)...")
+        try:
+            clear_index(api)
+            print("  cleared.")
+        except Exception as e:
+            print(f"  clear failed: {e}")
     ok = skipped = failed = 0
     for dirpath, dirnames, filenames in os.walk(root):
         dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]

@@ -15,10 +15,11 @@ class ContextRetriever:
         self.index = VectorStoreIndex.from_vector_store(self.vector_store)
         self.retriever = self.index.as_retriever(similarity_top_k=5)
 
-    async def retrieve_context(self, query: str, top_k: int = 5) -> list[Chunk]:
+    async def retrieve_context(self, query: str, top_k: int = 8) -> list[Chunk]:
         """Retrieve context chunks for a query."""
-        nodes = self.retriever.retrieve(query)
-        chunks = []
+        retriever = self.index.as_retriever(similarity_top_k=top_k)
+        nodes = retriever.retrieve(query)
+        chunks: list[Chunk] = []
         for node in nodes[:top_k]:
             chunks.append(
                 Chunk(

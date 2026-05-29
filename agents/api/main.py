@@ -279,6 +279,22 @@ async def ingest_document(item: IngestItem) -> dict[str, Any]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.post("/api/v1/knowledge/clear")
+async def clear_knowledge() -> dict[str, str]:
+    """Delete the Documents collection so a re-index does not create duplicates."""
+    from brain_knowledge.vector_store import get_weaviate_client
+
+    try:
+        client = get_weaviate_client()
+        try:
+            client.collections.delete("Documents")
+        finally:
+            client.close()
+        return {"status": "cleared"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/v1/knowledge/retrieve")
 async def retrieve_context(query: str, top_k: int = 5) -> list[dict[str, Any]]:
     """Retrieve context from knowledge base."""

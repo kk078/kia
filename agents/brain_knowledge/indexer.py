@@ -27,8 +27,11 @@ class DocumentIndexer:
             # High-risk content is refused at the ingestion boundary.
             return []
         doc_id = document.id or uuid.uuid4().hex
+        # Prepend the (trusted) source path so retrieval matches on filename and the
+        # model can cite where each chunk came from.
+        text = f"# Source: {document.source}\n\n{guard.clean_text}"
         llama_doc = LlamaDocument(
-            text=guard.clean_text,
+            text=text,
             id_=doc_id,
             metadata={
                 "source": document.source,
