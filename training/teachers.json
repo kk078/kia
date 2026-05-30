@@ -1,9 +1,26 @@
 {
   "teacher_url": "https://ollama.com/v1",
-  "_comment": "Each entry: a teacher model + the domain it is strong at + a prompts file. KIA distills each teacher's speciality. Add/remove freely. Keep it curated -- a 1.5B student cannot absorb every model; quality over quantity.",
+  "_comment": "Each entry: teacher model + the domain it's strong at + a prompts file. One teacher per domain is used (extras for a domain are skipped). Curate - a 1.5B student can't absorb every model.",
   "teachers": [
-    {"model": "qwen3-coder:480b", "domain": "coding",    "prompts": "training/prompts/coding.txt"},
-    {"model": "deepseek-v4-pro",  "domain": "reasoning", "prompts": "training/prompts/reasoning.txt"},
-    {"model": "gpt-oss:120b",     "domain": "general",   "prompts": "training/prompts/general.txt"}
+    {
+      "model": "qwen3-coder:480b",
+      "domain": "coding",
+      "prompts": "training/prompts/coding.txt"
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "domain": "reasoning",
+      "prompts": "training/prompts/reasoning.txt"
+    },
+    {
+      "model": "deepseek-v4-pro",
+      "domain": "math",
+      "prompts": "training/prompts/math.txt"
+    },
+    {
+      "model": "gpt-oss:120b",
+      "domain": "general",
+      "prompts": "training/prompts/general.txt"
+    }
   ]
 }

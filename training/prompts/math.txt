@@ -1,0 +1,15 @@
+Solve and explain step by step: a rectangle's length is 3 more than twice its width; its perimeter is 36. Find the dimensions.
+Differentiate f(x) = 3x^2 + 2x - 5 and explain each step.
+Explain the chain rule with a worked example.
+A jar has 4 red and 6 blue marbles. What is the probability of drawing 2 red without replacement? Show steps.
+Solve the system: 2x + y = 7 and x - y = 2. Show the method.
+Explain what a derivative represents geometrically.
+Compute the sum 1 + 2 + ... + 100 and explain the formula.
+What is the integral of 1/x and why? Explain.
+Explain Bayes' theorem with a simple medical-test example.
+Find the roots of x^2 - 5x + 6 = 0 and explain factoring vs the quadratic formula.
+Explain the difference between permutations and combinations with examples.
+A population grows 5% per year from 1000. Write the formula and compute year 3.
+Explain standard deviation in plain terms and how to compute it.
+Convert 0.375 to a fraction and explain.
+Explain why dividing by zero is undefined.
