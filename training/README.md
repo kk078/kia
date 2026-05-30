@@ -1,51 +1,54 @@
-# KIA Training Kit (Phase 3)
+# KIA — Feeding Knowledge (ingestion guide)
 
-Free, no-rent path to fine-tune KIA on your own data. See `../PHASE3_TRAINING_PLAN.md`
-for the full plan and honest expectations.
+KIA learns in two ways:
+- **Knowledge base (RAG)** — instant, reliable for FACTS. Ask via `/brain <question>` in chat.
+- **Weights (fine-tune)** — periodic, for STYLE/skill. See PHASE3_TRAINING_PLAN.md.
 
-## Pipeline
+For facts (TPA records, papers, screenshots) always prefer RAG ingestion below.
+Server-side content-hash dedup means re-running any ingester skips already-learned content.
 
+## In chat (quick, ad-hoc)
+- `/learn <text>`  — teach KIA pasted text (indexes now + queues for next fine-tune)
+- `/brain <question>` — answer using KIA's knowledge base (hybrid keyword+vector retrieval)
+
+## Structured data — CSV / Excel  (one clean record per row)
 ```
-capture loop  ->  build_dataset.py  ->  kia_finetune.py (Colab T4)  ->  Modelfile -> Ollama
-(live, auto)      (merge + teacher)     (free GPU, ~30 min)             (local serve)
+python scripts/ingest_structured.py "C:\data\tpa_database.csv"
+python scripts/ingest_structured.py "C:\data\book.xlsx" --sheet Sheet1 --group 5
+```
+Needs `pip install openpyxl` for .xlsx. Each row becomes "Col: val | Col: val" so KIA can
+answer about specific fields (address, email, specialty, ...).
+
+## Documents — PDF / text / markdown / abstracts
+```
+python scripts/ingest_docs.py C:\papers --to-rag            # ground for recall (recommended)
+python scripts/ingest_docs.py C:\papers --to-train \
+  --teacher-url https://ollama.com/v1 --teacher-model gpt-oss:120b --teacher-key $env:TEACHER_KEY
+```
+Needs `pip install pypdf`.
+
+## Images / scans / screenshots — OCR
+Runs Tesseract locally, sends extracted text to KIA.
+```
+# 1) Install Tesseract: https://github.com/UB-Mannheim/tesseract/wiki
+# 2) pip install pytesseract pillow pdf2image    (pdf2image+Poppler only for image-only PDFs)
+python scripts/ingest_images.py C:\scans
+python scripts/ingest_images.py C:\scans\table.png --tesseract "C:\Program Files\Tesseract-OCR\tesseract.exe"
 ```
 
-## 1. Capture (automatic, already running)
-Every KIA chat is logged to `data/kia_train.jsonl` (mounted from the container).
-Check how much you've banked:
+## Codebase
 ```
-curl.exe -s http://localhost:8000/api/v1/training/stats
+python scripts/index_codebase.py C:\dev --reindex
 ```
 
-## 2. Build the dataset (local, free)
-Merge captured chats (and optionally generate repo Q&A via a teacher):
+## Multi-teacher distillation (training data from other models)
 ```
-# just merge captured chats
-python scripts/build_dataset.py
-
-# also add repo Q&A using Ollama Cloud as the teacher (stays provider-free)
-python scripts/build_dataset.py --repo C:\dev\agents ^
-  --teacher-url https://ollama.com/v1 --teacher-model gpt-oss:120b --teacher-key <OLLAMA_KEY>
+python scripts/distill_multiteacher.py            # curated teachers.json
+python scripts/distill_multiteacher.py --auto     # one best model per domain
+python scripts/distill_multiteacher.py --dedupe-only
 ```
-Output: `data/kia_dataset.jsonl`
 
-## 3. Fine-tune (free Google Colab / Kaggle T4, ~30 min)
-1. New Colab notebook -> Runtime -> Change runtime type -> GPU (T4).
-2. Upload `data/kia_dataset.jsonl` and `training/kia_finetune.py`.
-3. `!pip install unsloth`
-4. `!python kia_finetune.py`  (edit BASE_MODEL/template at the top for qwen vs llama)
-5. Download `kia-tuned.gguf`.
-
-## 4. Serve locally
-```
-# put kia-tuned.gguf next to training/Modelfile, then:
-ollama create kia-tuned -f training/Modelfile
-# point KIA at it (.env):  DEFAULT_OSS_MODEL=kia-tuned   (or KIA_CODER_MODEL=ollama/kia-tuned)
-docker compose -f docker-compose.prod.yml up -d python-api
-```
-KIA's /v1 layer already routes through whatever model those vars name -- no code change.
-
-## Notes
-- Quality > quantity: a few hundred good pairs beat thousands of noisy ones.
-- Keep the base model pinned; re-tune periodically as your capture set grows.
-- The 3B ceiling persists -- this makes KIA sharper on *your* tasks, not a small Opus.
+## Maintenance
+- Clear the whole knowledge base (start fresh):  POST /api/v1/knowledge/clear
+- Retrieval is HYBRID (keyword + vector) so exact names (a company, a class) match well.
+- Honest split: RAG = facts (instant, accurate); fine-tune = voice/skill (periodic, GPU).
