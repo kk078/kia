@@ -3,7 +3,7 @@
     <div class="flex items-center justify-between mb-6">
       <h1 class="text-3xl font-bold">
         <i class="fas fa-comments text-blue-500 mr-3"></i>
-        Chat with Brain
+        Chat with KIA
       </h1>
       <button
         @click="newChat"
@@ -17,7 +17,11 @@
       <div ref="messagesContainer" class="flex-1 overflow-y-auto mb-4 space-y-4">
         <div v-if="messages.length === 0" class="text-center text-gray-500 mt-20">
           <i class="fas fa-robot text-6xl mb-4"></i>
-          <p class="text-xl">Start a conversation with the Secondary Brain</p>
+          <p class="text-xl">Start a conversation with KIA</p>
+          <p class="text-sm mt-3 text-gray-600">
+            Tip: <code>/learn &lt;text&gt;</code> teaches KIA new knowledge ·
+            <code>/brain &lt;question&gt;</code> answers using what it knows
+          </p>
         </div>
         <div
           v-for="(msg, idx) in messages"
@@ -30,7 +34,7 @@
           >
             <div class="flex items-center mb-1">
               <i :class="msg.role === 'user' ? 'fas fa-user' : 'fas fa-robot'" class="mr-2"></i>
-              <span class="text-sm font-semibold">{{ msg.role === 'user' ? 'You' : 'Brain' }}</span>
+              <span class="text-sm font-semibold">{{ msg.role === 'user' ? 'You' : 'KIA' }}</span>
             </div>
             <div class="whitespace-pre-wrap">{{ msg.content }}</div>
           </div>
@@ -44,14 +48,14 @@
       </div>
 
       <div class="flex gap-2">
-        <input
+        <textarea
           v-model="input"
-          @keyup.enter="sendMessage"
+          @keydown.enter.exact.prevent="sendMessage"
           :disabled="loading"
-          type="text"
-          placeholder="Type your message..."
-          class="flex-1 bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50"
-        />
+          rows="2"
+          placeholder="Message KIA...  (/learn <text> to teach, /brain <question> to ask its knowledge)"
+          class="flex-1 bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none"
+        ></textarea>
         <button
           @click="sendMessage"
           :disabled="loading || !input.trim()"
@@ -102,14 +106,60 @@ const scrollToBottom = () => {
 const sendMessage = async () => {
   if (!input.value.trim() || loading.value) return
 
-  const userMessage = input.value.trim()
-  messages.value.push({ role: 'user', content: userMessage })
+  const text = input.value.trim()
   input.value = ''
+
+  // /learn <text> : teach KIA (index to knowledge base now + queue for next fine-tune)
+  if (text.toLowerCase().startsWith('/learn ')) {
+    const body = text.slice(7).trim()
+    messages.value.push({ role: 'user', content: '📚 Teaching KIA...' })
+    loading.value = true
+    scrollToBottom()
+    try {
+      const r = await api.learn(body)
+      messages.value.push({
+        role: 'assistant',
+        content: `Learned ✓ - indexed ${r.data.chunks_indexed} chunk(s). Ask about it with /brain; it's queued for my next training.`
+      })
+    } catch (error) {
+      messages.value.push({
+        role: 'assistant',
+        content: `Error: ${error.response?.data?.detail || error.message}`
+      })
+    } finally {
+      loading.value = false
+      scrollToBottom()
+    }
+    return
+  }
+
+  // /brain <question> : answer using KIA's knowledge base (retrieval)
+  if (text.toLowerCase().startsWith('/brain ')) {
+    const q = text.slice(7).trim()
+    messages.value.push({ role: 'user', content: q })
+    loading.value = true
+    scrollToBottom()
+    try {
+      const r = await api.ragQuery(q)
+      messages.value.push({ role: 'assistant', content: r.data.answer })
+    } catch (error) {
+      messages.value.push({
+        role: 'assistant',
+        content: `Error: ${error.response?.data?.detail || error.message}`
+      })
+    } finally {
+      loading.value = false
+      scrollToBottom()
+    }
+    return
+  }
+
+  // normal chat
+  messages.value.push({ role: 'user', content: text })
   loading.value = true
   scrollToBottom()
-
   try {
-    const response = await api.generate(userMessage, taskType.value)
+    const response = await api.generate(text, taskType.value)
     messages.value.push({ role: 'assistant', content: response.data.response })
   } catch (error) {
     messages.value.push({

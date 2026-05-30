@@ -76,6 +76,10 @@ export default {
     })
   },
 
+  learn(text, source = null) {
+    return api.post('/learn', { text, source })
+  },
+
   // Orchestrator
   runOrchestrator(goal, sid = sessionId) {
     return api.post('/orchestrator/run', null, {

@@ -303,6 +303,48 @@ async def clear_knowledge() -> dict[str, str]:
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class LearnItem(BaseModel):
+    """In-chat teaching payload: free text KIA should learn."""
+
+    text: str
+    source: str | None = None
+
+
+@app.post("/api/v1/learn")
+async def learn(item: LearnItem) -> dict[str, Any]:
+    """Teach KIA from pasted text: index to the knowledge base now, queue for next fine-tune."""
+    import json as _json
+    import os as _os
+
+    from brain_knowledge.indexer import DocumentIndexer
+    from brain_knowledge.models import Document
+
+    src = item.source or f"chat-learn-{datetime.utcnow().date().isoformat()}"
+    try:
+        indexer = DocumentIndexer()
+        chunk_ids = await indexer.index_document(Document(content=item.text, source=src))
+    except Exception as e:
+        raise _llm_error(e)
+    queued = False
+    try:
+        qpath = settings.training_capture_path.replace("kia_train.jsonl", "kia_learn_queue.jsonl")
+        parent = _os.path.dirname(qpath)
+        if parent:
+            _os.makedirs(parent, exist_ok=True)
+        with open(qpath, "a", encoding="utf-8") as f:
+            f.write(
+                _json.dumps(
+                    {"text": item.text, "source": src, "ts": datetime.utcnow().isoformat()},
+                    ensure_ascii=False,
+                )
+                + "\n"
+            )
+        queued = True
+    except Exception:
+        queued = False
+    return {"status": "learned", "chunks_indexed": len(chunk_ids), "source": src, "queued": queued}
+
+
 @app.get("/api/v1/knowledge/retrieve")
 async def retrieve_context(query: str, top_k: int = 5) -> list[dict[str, Any]]:
     """Retrieve context from knowledge base."""
