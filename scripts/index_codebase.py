@@ -54,7 +54,7 @@ def clear_index(api: str) -> None:
 
 
 def post(api: str, content: str, source: str) -> int:
-    data = json.dumps({"content": content, "source": source}).encode()
+    data = json.dumps({"content": content, "source": source, "collection": "KiaCodebase"}).encode()
     req = urllib.request.Request(
         api.rstrip("/") + "/api/v1/knowledge/ingest",
         data=data,
