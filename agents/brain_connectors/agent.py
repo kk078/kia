@@ -52,10 +52,15 @@ class ConnectorAgent:
         ]
         model = self._planner_model()
         kwargs: dict[str, Any] = {}
-        cfg = self.router._get_oss_config(model)
-        if cfg:
-            kwargs["api_base"] = cfg["api_base"]
-            kwargs["api_key"] = "sk-dummy"
+        if settings.connector_planner_model and settings.connector_planner_base_url:
+            # Dedicated planner endpoint (e.g. Ollama Cloud) for reliable tool-calling.
+            kwargs["api_base"] = settings.connector_planner_base_url
+            kwargs["api_key"] = settings.connector_planner_api_key or "sk-dummy"
+        else:
+            cfg = self.router._get_oss_config(model)
+            if cfg:
+                kwargs["api_base"] = cfg["api_base"]
+                kwargs["api_key"] = "sk-dummy"
 
         for _ in range(max_steps):
             resp = await litellm.acompletion(model=model, messages=messages, tools=tools, **kwargs)
