@@ -14,6 +14,32 @@ from brain_core.tracing import (
 )
 
 
+_DEEP_KEYWORDS = (
+    "analyze", "analysis", "compare", "evaluate", "assess", "reason", "prove",
+    "derive", "why", "trade-off", "tradeoff", "design", "architect", "debug",
+    "root cause", "step by step", "step-by-step", "strategy", "pros and cons",
+    "explain how", "explain why", "implications", "optimi", "diagnose",
+    "critique", "justify", "what if", "plan ",
+)
+
+
+def needs_deep_reasoning(prompt: str, task_type: str = "") -> bool:
+    """Heuristic: should KIA spend extra passes verifying this answer?
+
+    True for reasoning/analysis-heavy prompts (keywords, long multi-part questions,
+    or planning/synthesis task types); False for simple lookups and short queries.
+    """
+    p = (prompt or "").lower()
+    if task_type in ("planning", "synthesis"):
+        return True
+    if any(k in p for k in _DEEP_KEYWORDS):
+        return True
+    # Long or multi-question prompts tend to need more careful answers.
+    if len(p) > 600 or p.count("?") >= 3:
+        return True
+    return False
+
+
 class LLMRouter:
     """Routes LLM calls to appropriate providers via litellm."""
 
@@ -346,15 +372,17 @@ class LLMRouter:
         model: str | None = None,
         samples: int | None = None,
         system: str | None = None,
+        force: bool = False,
         **kwargs: Any,
     ) -> str:
         """Generate with self-consistency: sample N candidates, then judge/merge.
 
-        Trades extra (local, free) inference for accuracy. No-op when verification
-        is disabled or samples <= 1, in which case it behaves like generate().
+        Trades extra (local, free) inference for accuracy. No-op unless verification
+        is enabled globally OR ``force=True`` (e.g. auto-escalated for a reasoning-heavy
+        prompt), in which case it behaves like generate().
         """
         n = samples if samples is not None else settings.verify_samples
-        if not settings.verify_enabled or n <= 1:
+        if (not settings.verify_enabled and not force) or n <= 1:
             return await self.generate(prompt, task_type, model, system=system, **kwargs)
 
         candidates: list[str] = []

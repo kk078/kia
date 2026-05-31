@@ -13,6 +13,7 @@ from brain_core.config import settings
 from brain_core.persona import KIA_SYSTEM
 from brain_core.trace_context import set_trace_context
 from brain_core.training_capture import capture, stats
+from brain_core.llm import needs_deep_reasoning
 from brain_core.types import Context
 from brain_memory.models import Episode, Fact, Skill
 
@@ -209,9 +210,10 @@ async def generate_text(
 
     try:
         router = LLMRouter()
-        if verify or settings.verify_enabled:
+        auto = settings.auto_verify and needs_deep_reasoning(prompt, task_type)
+        if verify or settings.verify_enabled or auto:
             response = await router.generate_verified(
-                prompt, task_type=task_type, model=model, system=KIA_SYSTEM
+                prompt, task_type=task_type, model=model, system=KIA_SYSTEM, force=True
             )
         else:
             response = await router.generate(prompt, task_type, model, system=KIA_SYSTEM)

@@ -75,8 +75,10 @@ class Settings(BaseSettings):
     embed_model: str = "nomic-embed-text"
 
     # Verification / self-consistency (sample N candidates + judge). Opt-in (N x cost).
-    verify_enabled: bool = False
+    verify_enabled: bool = False  # global force-on; usually False (auto_verify decides)
     verify_samples: int = 3
+    auto_verify: bool = True  # KIA self-escalates to verification on reasoning-heavy prompts
+    ollama_keep_alive: str = "30m"  # keep model loaded between requests (avoids cold start)
 
     # Training-data capture (Phase 3): log user-facing chats as fine-tuning pairs.
     training_capture_enabled: bool = True

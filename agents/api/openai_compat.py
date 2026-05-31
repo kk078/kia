@@ -22,7 +22,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from brain_core.config import settings
-from brain_core.llm import LLMRouter
+from brain_core.llm import LLMRouter, needs_deep_reasoning
 from brain_core.persona import KIA_SYSTEM as KIA_PERSONA
 from brain_core.security import sanitize_untrusted, wrap_untrusted
 from brain_core.training_capture import capture
@@ -226,8 +226,9 @@ async def chat_completions(req: ChatRequest) -> Any:
             )
         else:
             prompt = convo
+        force = settings.auto_verify and needs_deep_reasoning(last_user, "research")
         text = await router_.generate_verified(
-            prompt, task_type="research", model=model, system=KIA_PERSONA
+            prompt, task_type="research", model=model, system=KIA_PERSONA, force=force
         )
         capture(last_user, text, source="v1-brain", model=req.model)
         if req.stream:
