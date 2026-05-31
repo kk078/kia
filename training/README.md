@@ -52,3 +52,5 @@ python scripts/distill_multiteacher.py --dedupe-only
 - Clear the whole knowledge base (start fresh):  POST /api/v1/knowledge/clear
 - Retrieval is HYBRID (keyword + vector) so exact names (a company, a class) match well.
 - Honest split: RAG = facts (instant, accurate); fine-tune = voice/skill (periodic, GPU).
+
+<!-- ci: revalidate after lint fixes -->
