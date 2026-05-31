@@ -51,9 +51,8 @@ class MCPConnectorManager:
 
     async def connect(self) -> list[dict[str, Any]]:
         """Launch + connect all configured servers; return discovered tools (OpenAI fmt)."""
-        from mcp.client.stdio import stdio_client
-
-        from mcp import ClientSession, StdioServerParameters
+        from mcp.client.session import ClientSession
+        from mcp.client.stdio import StdioServerParameters, stdio_client
 
         servers = self._load_config()
         if not servers:
