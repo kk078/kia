@@ -12,6 +12,7 @@ import json
 from typing import Any
 
 import redis.asyncio as redis
+
 from brain_core.config import settings
 
 
