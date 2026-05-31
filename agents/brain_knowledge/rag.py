@@ -1,8 +1,10 @@
-"""RAG (Retrieval-Augmented Generation) engine."""
+"""RAG (Retrieval-Augmented Generation) engine with response caching."""
 
 from brain_core.llm import LLMRouter
 from brain_core.security import sanitize_untrusted, wrap_untrusted
 from brain_knowledge.retriever import ContextRetriever
+
+from brain_core.cache import ResponseCache, cache_key
 
 
 class RAGEngine:
@@ -12,9 +14,15 @@ class RAGEngine:
         """Initialize the RAG engine."""
         self.retriever = ContextRetriever()
         self.llm = LLMRouter()
+        self.cache = ResponseCache()
 
     async def query(self, question: str, model: str | None = None) -> str:
-        """Answer a question using RAG."""
+        """Answer a question using RAG (cached by question+model)."""
+        key = cache_key("rag", question, model or "")
+        cached = await self.cache.get(key)
+        if cached is not None:
+            return cached
+
         # Retrieve relevant context, then sanitize each chunk (untrusted content).
         chunks = await self.retriever.retrieve_context(question, top_k=5)
         context = "\n\n".join(sanitize_untrusted(chunk.content).clean_text for chunk in chunks)
@@ -37,4 +45,5 @@ class RAGEngine:
         )
 
         content: str = response.choices[0].message.content
+        await self.cache.set(key, content)
         return content

@@ -80,6 +80,14 @@ class Settings(BaseSettings):
 
     # Resilience: retry transient LLM provider failures (litellm native).
     llm_num_retries: int = 2
+
+    # Caching layer (Redis response cache for RAG etc.).
+    cache_enabled: bool = True
+    cache_ttl_seconds: int = 3600
+
+    # Circuit breaker for LLM calls.
+    breaker_threshold: int = 5
+    breaker_cooldown_seconds: float = 30.0
     auto_verify: bool = True  # KIA self-escalates to verification on reasoning-heavy prompts
     ollama_keep_alive: str = "30m"  # keep model loaded between requests (avoids cold start)
 
