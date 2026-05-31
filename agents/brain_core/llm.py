@@ -148,6 +148,9 @@ class LLMRouter:
             kwargs["api_base"] = oss_config["api_base"]
             if "api_key" not in kwargs:
                 kwargs["api_key"] = "sk-dummy"
+            # Keep the local model loaded between requests (avoids cold-start reload).
+            if model.startswith("ollama") and "keep_alive" not in kwargs:
+                kwargs["keep_alive"] = settings.ollama_keep_alive
 
         # Langfuse generation metadata (litellm forwards this to the Langfuse callback).
         # Callers may pass metadata={"session_id": ..., "trace_user_id": ..., "tags": [...]}.
