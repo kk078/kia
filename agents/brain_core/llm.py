@@ -11,7 +11,6 @@ from brain_core.metrics import track_llm_call
 from brain_core.trace_context import get_trace_context
 from brain_core.tracing import llm_traced
 
-
 _DEEP_KEYWORDS = (
     "analyze", "analysis", "compare", "evaluate", "assess", "reason", "prove",
     "derive", "why", "trade-off", "tradeoff", "design", "architect", "debug",
