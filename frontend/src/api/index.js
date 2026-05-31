@@ -80,6 +80,12 @@ export default {
     return api.post('/learn', { text, source })
   },
 
+  useConnectors(prompt, maxSteps = 5) {
+    return api.post('/connectors/query', null, {
+      params: { prompt, max_steps: maxSteps }
+    })
+  },
+
   // Orchestrator
   runOrchestrator(goal, sid = sessionId) {
     return api.post('/orchestrator/run', null, {

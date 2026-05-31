@@ -20,7 +20,8 @@
           <p class="text-xl">Start a conversation with KIA</p>
           <p class="text-sm mt-3 text-gray-600">
             Tip: <code>/learn &lt;text&gt;</code> teaches KIA new knowledge ·
-            <code>/brain &lt;question&gt;</code> answers using what it knows
+            <code>/brain &lt;question&gt;</code> answers from memory ·
+            <code>/use &lt;task&gt;</code> calls connectors (GitHub, web, Slack...)
           </p>
         </div>
         <div
@@ -53,7 +54,7 @@
           @keydown.enter.exact.prevent="sendMessage"
           :disabled="loading"
           rows="2"
-          placeholder="Message KIA...  (/learn <text> to teach, /brain <question> to ask its knowledge)"
+          placeholder="Message KIA...  (/learn teach · /brain ask memory · /use call connectors)"
           class="flex-1 bg-gray-700 text-white px-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 resize-none"
         ></textarea>
         <button
@@ -120,6 +121,30 @@ const sendMessage = async () => {
       messages.value.push({
         role: 'assistant',
         content: `Learned ✓ - indexed ${r.data.chunks_indexed} chunk(s). Ask about it with /brain; it's queued for my next training.`
+      })
+    } catch (error) {
+      messages.value.push({
+        role: 'assistant',
+        content: `Error: ${error.response?.data?.detail || error.message}`
+      })
+    } finally {
+      loading.value = false
+      scrollToBottom()
+    }
+    return
+  }
+
+  // /use <task> : answer using connected MCP tools (GitHub, web search, Slack, ...)
+  if (text.toLowerCase().startsWith('/use ')) {
+    const task = text.slice(5).trim()
+    messages.value.push({ role: 'user', content: task })
+    loading.value = true
+    scrollToBottom()
+    try {
+      const r = await api.useConnectors(task)
+      messages.value.push({
+        role: 'assistant',
+        content: r.data.answer + `\n\n_(via ${r.data.tools_available} connector tool(s))_`
       })
     } catch (error) {
       messages.value.push({
