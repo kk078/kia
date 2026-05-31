@@ -77,6 +77,9 @@ class Settings(BaseSettings):
     # Verification / self-consistency (sample N candidates + judge). Opt-in (N x cost).
     verify_enabled: bool = False  # global force-on; usually False (auto_verify decides)
     verify_samples: int = 3
+
+    # Resilience: retry transient LLM provider failures (litellm native).
+    llm_num_retries: int = 2
     auto_verify: bool = True  # KIA self-escalates to verification on reasoning-heavy prompts
     ollama_keep_alive: str = "30m"  # keep model loaded between requests (avoids cold start)
 

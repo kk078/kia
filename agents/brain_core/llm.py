@@ -146,6 +146,10 @@ class LLMRouter:
             if "api_key" not in kwargs:
                 kwargs["api_key"] = "sk-dummy"
 
+        # Resilience: retry transient provider failures (litellm handles backoff).
+        if "num_retries" not in kwargs:
+            kwargs["num_retries"] = settings.llm_num_retries
+
         # Langfuse generation metadata (litellm forwards this to the Langfuse callback).
         # Callers may pass metadata={"session_id": ..., "trace_user_id": ..., "tags": [...]}.
         lf_meta: dict[str, Any] = {

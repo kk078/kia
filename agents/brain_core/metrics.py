@@ -268,3 +268,33 @@ def track_api_request(endpoint: str, status_code: int, duration: float) -> None:
         duration,
         endpoint=endpoint,
     )
+
+
+def _esc(v: str) -> str:
+    """Escape a Prometheus label value."""
+    return v.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ")
+
+
+def render_prometheus() -> str:
+    """Render collected metrics in Prometheus text exposition format.
+
+    Aggregates per metric name (single-user scope); histograms are exported as
+    summaries with p50/p95/p99 quantiles. Suitable for the configured Prometheus
+    scrape of GET /metrics.
+    """
+    out: list[str] = []
+    for name, vals in metrics.counters.items():
+        total = sum(v.value for v in vals)
+        out.append(f"# TYPE {name} counter")
+        out.append(f"{name} {total}")
+    for name in metrics.histograms:
+        stats = metrics.get_histogram_stats(name)
+        out.append(f"# TYPE {name} summary")
+        out.append(f"{name}_count {stats['count']}")
+        out.append(f"{name}_sum {stats['sum']}")
+        for label, key in (("0.5", "p50"), ("0.95", "p95"), ("0.99", "p99")):
+            out.append(f'{name}{{quantile="{label}"}} {stats[key]}')
+    for name in metrics.gauges:
+        out.append(f"# TYPE {name} gauge")
+        out.append(f"{name} {metrics.get_gauge(name)}")
+    return "\n".join(out) + "\n"

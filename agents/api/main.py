@@ -4,7 +4,7 @@ import traceback
 from datetime import datetime
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -69,6 +69,14 @@ def _llm_error(e: Exception) -> HTTPException:
 async def health_check() -> dict[str, str]:
     """Health check endpoint."""
     return {"status": "healthy", "timestamp": datetime.utcnow().isoformat()}
+
+
+@app.get("/metrics")
+async def metrics_endpoint() -> Response:
+    """Prometheus metrics exposition (scraped by the monitoring stack)."""
+    from brain_core.metrics import render_prometheus
+
+    return Response(content=render_prometheus(), media_type="text/plain; version=0.0.4")
 
 
 @app.get("/api/v1/status")
