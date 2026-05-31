@@ -20,7 +20,7 @@ Dual-stack: Python agents + .NET gateway, running natively on Windows.
 - `agents/brain_proactive/` - Schedulers, watchers, triggers
 - `agents/brain_n8n/` - n8n workflow bridge
 - `agents/api/` - FastAPI gateway (REST API)
-- `agents/mcp/` - MCP server (Model Context Protocol)
+- `agents/brain_mcp/` - MCP server (Model Context Protocol)
 - `gateway/` - ASP.NET Core API + Python bridge
 
 ## Framework Selection Guide
@@ -75,7 +75,7 @@ uv run pytest tests/unit/test_core.py::test_function_name -v
 uv run uvicorn api.main:app --reload --port 8000
 
 # Run MCP server
-uv run python -m mcp.server
+uv run python -m brain_mcp.server
 ```
 
 ### .NET Gateway
@@ -145,7 +145,7 @@ docker-compose down
 ### MCP Server
 - Exposes brain capabilities as MCP tools
 - Tools: memory operations, knowledge queries, orchestration, LLM generation
-- Run with: `uv run python -m mcp.server`
+- Run with: `uv run python -m brain_mcp.server`
 - Connect from OpenCode or any MCP client
 
 ### Observability
