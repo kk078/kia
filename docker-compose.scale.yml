@@ -1,0 +1,26 @@
+# Horizontal scale overlay for KIA.
+#   docker compose -f docker-compose.prod.yml -f docker-compose.scale.yml up -d --scale python-api=3
+#
+# Adds an nginx load balancer in front of N python-api replicas. The published
+# host port moves to the LB; python-api no longer publishes its own port so
+# replicas don't collide. Backend (Ollama, DBs) stays shared/stateful.
+
+services:
+  python-api:
+    ports: []
+    container_name: ""
+    deploy:
+      replicas: 3
+
+  lb:
+    image: nginx:1.27-alpine
+    container_name: brain-lb-prod
+    restart: unless-stopped
+    depends_on:
+      - python-api
+    ports:
+      - "8000:8080"   # external :8000 now hits the LB
+    volumes:
+      - ./deploy/nginx-lb.conf:/etc/nginx/nginx.conf:ro
+    networks:
+      - brain-network
