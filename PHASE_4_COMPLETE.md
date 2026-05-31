@@ -62,7 +62,7 @@ Phase 4 successfully implemented the unified API gateway, task routing system, a
   - `classify_with_llm()` - LLM-based classification
   - `get_framework_info()` - Get framework metadata
 
-### 3. MCP Server (`agents/mcp/`)
+### 3. MCP Server (`agents/brain_mcp/`)
 
 #### Server Implementation (`server.py`)
 - **Purpose**: Expose brain capabilities as MCP tools for AI assistants
@@ -80,7 +80,7 @@ Phase 4 successfully implemented the unified API gateway, task routing system, a
   - Async tool execution
   - Error handling and reporting
 - **Usage**:
-  - Run: `uv run python -m mcp.server`
+  - Run: `uv run python -m brain_mcp.server`
   - Connect from OpenCode, Claude Desktop, or any MCP client
 
 ### 4. .NET Gateway (`gateway/`)
@@ -216,7 +216,7 @@ agents/
 │   ├── main.py              # FastAPI application
 │   └── routes/
 │       └── __init__.py
-├── mcp/
+├── brain_mcp/
 │   ├── __init__.py
 │   └── server.py            # MCP server
 ├── brain_core/
@@ -301,7 +301,7 @@ curl "http://localhost:8000/api/v1/memory/episodes?query=Python&limit=5"
 ```bash
 # Start MCP server
 cd agents
-uv run python -m mcp.server
+uv run python -m brain_mcp.server
 
 # Connect from OpenCode or Claude Desktop
 # Tools available:
@@ -420,7 +420,7 @@ uv run uvicorn api.main:app --reload --port 8000
 
 # Start MCP server
 cd agents
-uv run python -m mcp.server
+uv run python -m brain_mcp.server
 
 # Start .NET gateway
 cd gateway
