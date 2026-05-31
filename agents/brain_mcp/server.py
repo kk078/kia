@@ -3,6 +3,7 @@
 import asyncio
 from typing import Any
 
+from mcp.server import Server  # type: ignore[attr-defined]
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
@@ -14,7 +15,6 @@ from brain_memory.episodic import EpisodicMemory
 from brain_memory.models import Episode, Fact
 from brain_memory.semantic import SemanticMemory
 from brain_orchestrator.planner import Orchestrator
-from mcp.server import Server  # type: ignore[attr-defined]
 
 server = Server("secondary-brain")
 
