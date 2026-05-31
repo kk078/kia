@@ -20,6 +20,7 @@ import argparse
 import csv
 import json
 import os
+import time
 import urllib.request
 
 API = "http://localhost:8000"
@@ -61,13 +62,20 @@ def row_to_record(header: list[str], row: list[str]) -> str:
     return " | ".join(parts)
 
 
-def post(api: str, content: str, source: str) -> int:
+def post(api: str, content: str, source: str, retries: int = 3) -> int:
     body = json.dumps({"content": content, "source": source}).encode()
-    req = urllib.request.Request(api.rstrip("/") + "/api/v1/knowledge/ingest",
-                                 data=body, headers={"Content-Type": "application/json"},
-                                 method="POST")
-    with urllib.request.urlopen(req, timeout=600) as r:
-        return len(json.loads(r.read().decode()).get("chunk_ids", []))
+    last_err = None
+    for attempt in range(retries):
+        try:
+            req = urllib.request.Request(api.rstrip("/") + "/api/v1/knowledge/ingest",
+                                         data=body, headers={"Content-Type": "application/json"},
+                                         method="POST")
+            with urllib.request.urlopen(req, timeout=600) as r:
+                return len(json.loads(r.read().decode()).get("chunk_ids", []))
+        except Exception as e:  # noqa: BLE001 - retry transient drops (container restart, OOM)
+            last_err = e
+            time.sleep(3 * (attempt + 1))
+    raise RuntimeError(f"post failed after {retries} tries: {last_err}")
 
 
 def main() -> None:
@@ -93,7 +101,7 @@ def main() -> None:
     records = [r for r in records if r.strip()]
     print(f"{len(records)} non-empty records")
 
-    indexed = skipped = 0
+    indexed = skipped = failed = 0
     buf: list[str] = []
     sent = 0
     for rec in records:
@@ -101,22 +109,30 @@ def main() -> None:
         if len(buf) >= args.group:
             sent += 1
             content = f"Records from {label}:\n" + "\n".join(buf)
-            n = post(args.api, content, f"data:{label}#{sent}")
-            if n:
-                indexed += 1
-            else:
-                skipped += 1  # server deduped (already learned)
-            print(f"  record {sent}: {'indexed' if n else 'duplicate-skipped'}")
+            try:
+                n = post(args.api, content, f"data:{label}#{sent}")
+                if n:
+                    indexed += 1
+                else:
+                    skipped += 1  # server deduped (already learned)
+                print(f"  record {sent}: {'indexed' if n else 'duplicate-skipped'}")
+            except Exception as e:  # noqa: BLE001
+                failed += 1
+                print(f"  record {sent}: FAILED ({e})")
             buf = []
     if buf:
         sent += 1
         content = f"Records from {label}:\n" + "\n".join(buf)
-        n = post(args.api, content, f"data:{label}#{sent}")
-        indexed += 1 if n else 0
-        skipped += 0 if n else 1
-        print(f"  record {sent}: {'indexed' if n else 'duplicate-skipped'}")
+        try:
+            n = post(args.api, content, f"data:{label}#{sent}")
+            indexed += 1 if n else 0
+            skipped += 0 if n else 1
+            print(f"  record {sent}: {'indexed' if n else 'duplicate-skipped'}")
+        except Exception as e:  # noqa: BLE001
+            failed += 1
+            print(f"  record {sent}: FAILED ({e})")
 
-    print(f"\nDone. records_sent={sent} indexed={indexed} duplicate_skipped={skipped}")
+    print(f"\nDone. records_sent={sent} indexed={indexed} duplicate_skipped={skipped} failed={failed}")
     print("Ask KIA about it in chat with:  /brain <your question>")
 
 
