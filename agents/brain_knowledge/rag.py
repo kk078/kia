@@ -1,10 +1,9 @@
 """RAG (Retrieval-Augmented Generation) engine with response caching."""
 
+from brain_core.cache import ResponseCache, cache_key
 from brain_core.llm import LLMRouter
 from brain_core.security import sanitize_untrusted, wrap_untrusted
 from brain_knowledge.retriever import ContextRetriever
-
-from brain_core.cache import ResponseCache, cache_key
 
 
 class RAGEngine:
