@@ -24,9 +24,9 @@ def _content_hash(text: str) -> str:
 class DocumentIndexer:
     """Indexes documents into Weaviate using LlamaIndex, skipping duplicates."""
 
-    def __init__(self) -> None:
+    def __init__(self, collection: str = "KiaKnowledge") -> None:
         """Initialize the document indexer and load the seen-content registry."""
-        self.vector_store = get_vector_store("Documents")
+        self.vector_store = get_vector_store(collection)
         self.index = VectorStoreIndex.from_vector_store(self.vector_store)
         self._splitter = SentenceSplitter()
         data_dir = os.path.dirname(settings.training_capture_path) or "."

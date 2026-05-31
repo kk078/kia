@@ -215,9 +215,10 @@ async def chat_completions(req: ChatRequest) -> Any:
         if ctx.strip():
             prompt = (
                 "Answer the user's question using ONLY the reference data below, which "
-                "comes from Kiran's codebase (a Python project). Cite the source file "
-                "paths you relied on. If the reference data does not contain the answer, "
-                "say you don't have that indexed instead of guessing.\n\n"
+                "comes from Kiran's knowledge base (documents, datasets, and notes Kiran "
+                "has taught you). Quote the specific values that answer the question and "
+                "cite the source. If the reference data does not contain the answer, say "
+                "you don't have that indexed instead of guessing.\n\n"
                 + wrap_untrusted(ctx, source="kia_kb")
                 + "\n\nConversation:\n"
                 + convo

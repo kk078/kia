@@ -16,6 +16,9 @@ from weaviate.classes.init import AdditionalConfig
 
 from brain_core.config import settings
 
+KNOWLEDGE_COLLECTION = "KiaKnowledge"
+CODEBASE_COLLECTION = "KiaCodebase"
+
 _embed_configured = False
 
 
@@ -45,7 +48,7 @@ def get_weaviate_client() -> Any:
     )
 
 
-def get_vector_store(index_name: str = "Documents") -> Any:
+def get_vector_store(index_name: str = KNOWLEDGE_COLLECTION) -> Any:
     """Return a LlamaIndex WeaviateVectorStore backed by a real client (local embeddings)."""
     _configure_local_embeddings()
     return WeaviateVectorStore(weaviate_client=get_weaviate_client(), index_name=index_name)

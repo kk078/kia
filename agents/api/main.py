@@ -257,7 +257,7 @@ async def index_document(content: str, source: str) -> dict[str, Any]:
     from brain_knowledge.models import Document
 
     try:
-        indexer = DocumentIndexer()
+        indexer = DocumentIndexer(collection="KiaCodebase")
         doc = Document(content=content, source=source)
         chunk_ids = await indexer.index_document(doc)
         return {"chunk_ids": chunk_ids, "status": "indexed"}
@@ -270,6 +270,7 @@ class IngestItem(BaseModel):
 
     content: str
     source: str
+    collection: str = "KiaKnowledge"
 
 
 @app.post("/api/v1/knowledge/ingest")
@@ -279,7 +280,7 @@ async def ingest_document(item: IngestItem) -> dict[str, Any]:
     from brain_knowledge.models import Document
 
     try:
-        indexer = DocumentIndexer()
+        indexer = DocumentIndexer(collection=item.collection)
         doc = Document(content=item.content, source=item.source)
         chunk_ids = await indexer.index_document(doc)
         return {"chunk_ids": chunk_ids, "status": "indexed"}
@@ -288,17 +289,17 @@ async def ingest_document(item: IngestItem) -> dict[str, Any]:
 
 
 @app.post("/api/v1/knowledge/clear")
-async def clear_knowledge() -> dict[str, str]:
-    """Delete the Documents collection so a re-index does not create duplicates."""
+async def clear_knowledge(collection: str = "KiaKnowledge") -> dict[str, str]:
+    """Delete a knowledge collection so a re-index does not create duplicates."""
     from brain_knowledge.vector_store import get_weaviate_client
 
     try:
         client = get_weaviate_client()
         try:
-            client.collections.delete("Documents")
+            client.collections.delete(collection)
         finally:
             client.close()
-        return {"status": "cleared"}
+        return {"status": "cleared", "collection": collection}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

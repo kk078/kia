@@ -11,9 +11,9 @@ from brain_knowledge.vector_store import get_vector_store
 class ContextRetriever:
     """Retrieves context from indexed documents using hybrid search when available."""
 
-    def __init__(self) -> None:
+    def __init__(self, collection: str = "KiaKnowledge") -> None:
         """Initialize the context retriever."""
-        self.vector_store = get_vector_store("Documents")
+        self.vector_store = get_vector_store(collection)
         self.index = VectorStoreIndex.from_vector_store(self.vector_store)
 
     async def retrieve_context(self, query: str, top_k: int = 8) -> list[Chunk]:
