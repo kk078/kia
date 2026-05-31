@@ -8,6 +8,7 @@ Best-effort: any Redis error degrades to a cache miss, never breaks the request.
 from __future__ import annotations
 
 import hashlib
+from typing import Any
 
 import redis.asyncio as redis
 
@@ -26,7 +27,7 @@ class ResponseCache:
 
     def __init__(self) -> None:
         """Initialize the cache with a Redis connection."""
-        self._redis: redis.Redis = redis.from_url(settings.redis_url, decode_responses=True)
+        self._redis: Any = redis.from_url(settings.redis_url, decode_responses=True)
 
     async def get(self, key: str) -> str | None:
         """Return a cached value, or None on miss/error."""

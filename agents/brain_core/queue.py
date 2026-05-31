@@ -28,7 +28,9 @@ class JobQueue:
         """
         self.stream = stream
         self.group = group
-        self._redis: redis.Redis = redis.from_url(settings.redis_url, decode_responses=True)
+        # Typed as Any: redis-py stream signatures are very strict and the nested
+        # xreadgroup return type fights mypy; shapes are validated at runtime.
+        self._redis: Any = redis.from_url(settings.redis_url, decode_responses=True)
 
     async def ensure_group(self) -> None:
         """Create the consumer group if it does not exist (idempotent)."""
@@ -54,12 +56,12 @@ class JobQueue:
         )
         if not resp:
             return None
-        _stream, entries = resp[0]
+        entries = resp[0][1]
         if not entries:
             return None
         msg_id, fields = entries[0]
         payload = json.loads(fields.get("payload", "{}"))
-        return msg_id, {"type": fields.get("type", ""), "payload": payload}
+        return str(msg_id), {"type": fields.get("type", ""), "payload": payload}
 
     async def ack(self, msg_id: str) -> None:
         """Acknowledge a completed job so it is not redelivered."""
