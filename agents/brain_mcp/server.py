@@ -3,7 +3,7 @@
 import asyncio
 from typing import Any
 
-from mcp.server import Server  # type: ignore[attr-defined]
+from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
@@ -19,7 +19,7 @@ from brain_orchestrator.planner import Orchestrator
 server = Server("secondary-brain")
 
 
-@server.list_tools()  # type: ignore[untyped-decorator]
+@server.list_tools()  # type: ignore
 async def list_tools() -> list[Tool]:
     """List available MCP tools."""
     return [
@@ -140,7 +140,7 @@ async def list_tools() -> list[Tool]:
     ]
 
 
-@server.call_tool()  # type: ignore[untyped-decorator]
+@server.call_tool()  # type: ignore
 async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     try:
