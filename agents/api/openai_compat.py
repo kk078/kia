@@ -194,9 +194,7 @@ async def chat_completions(req: ChatRequest) -> Any:
     router_ = LLMRouter()
 
     if mode == "brain":
-        last_user = next(
-            (m["content"] for m in reversed(messages) if m["role"] == "user"), ""
-        )
+        last_user = next((m["content"] for m in reversed(messages) if m["role"] == "user"), "")
         ctx = ""
         try:
             chunks = await ContextRetriever().retrieve_context(last_user, top_k=8)
@@ -209,9 +207,7 @@ async def chat_completions(req: ChatRequest) -> Any:
             ctx = "\n\n".join(parts)
         except Exception:
             ctx = ""
-        convo = "\n".join(
-            f"{m['role']}: {m['content']}" for m in messages if m["role"] != "system"
-        )
+        convo = "\n".join(f"{m['role']}: {m['content']}" for m in messages if m["role"] != "system")
         if ctx.strip():
             prompt = (
                 "Answer the user's question using ONLY the reference data below, which "
@@ -232,9 +228,7 @@ async def chat_completions(req: ChatRequest) -> Any:
         )
         capture(last_user, text, source="v1-brain", model=req.model)
         if req.stream:
-            return StreamingResponse(
-                _stream_text(text, req.model), media_type="text/event-stream"
-            )
+            return StreamingResponse(_stream_text(text, req.model), media_type="text/event-stream")
         return _completion(text, req.model)
 
     if req.stream:

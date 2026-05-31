@@ -89,3 +89,6 @@ docker-compose.override.yml
 
 # KIA captured training data
 data/
+
+# KIA connector secrets
+data/connectors.json

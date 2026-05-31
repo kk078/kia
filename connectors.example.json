@@ -1,0 +1,45 @@
+{
+  "_comment": "KIA connectors \u2014 same shape as Claude's MCP config. Copy to data/connectors.json, fill secrets, set CONNECTORS_ENABLED=true. Each server is an MCP server launched over stdio. Install servers via npx/uvx as shown.",
+  "mcpServers": {
+    "filesystem": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-filesystem",
+        "/app/data"
+      ],
+      "env": {}
+    },
+    "github": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-github"
+      ],
+      "env": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "ghp_xxx_replace_me"
+      }
+    },
+    "web-search": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-brave-search"
+      ],
+      "env": {
+        "BRAVE_API_KEY": "replace_me"
+      }
+    },
+    "slack": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-slack"
+      ],
+      "env": {
+        "SLACK_BOT_TOKEN": "xoxb-replace_me",
+        "SLACK_TEAM_ID": "T_replace_me"
+      }
+    }
+  }
+}

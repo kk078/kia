@@ -58,9 +58,7 @@ class GraphRAGEngine:
         )
 
         return GraphRAG(
-            connection=ConnectionConfig(
-                host=self.host, port=self.port, graph_name=self.graph_name
-            ),
+            connection=ConnectionConfig(host=self.host, port=self.port, graph_name=self.graph_name),
             llm=LiteLLM(model=self.llm_model),
             embedder=LiteLLMEmbedder(model=self.embed_model),
         )

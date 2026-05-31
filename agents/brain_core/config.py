@@ -99,5 +99,11 @@ class Settings(BaseSettings):
     dspy_enabled: bool = False
     dspy_model: str = ""  # empty -> ollama_chat/<default_oss_model>
 
+    # Connectors / MCP client layer.
+    connectors_enabled: bool = False
+    connectors_config: str = "/app/data/connectors.json"
+    # Strong model for tool-planning (e.g. cloud); empty -> local default model.
+    connector_planner_model: str = ""
+
 
 settings = Settings()

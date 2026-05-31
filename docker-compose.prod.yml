@@ -136,6 +136,9 @@ services:
       KIA_CODER_MODEL: ${KIA_CODER_MODEL:-}
       TRAINING_CAPTURE_ENABLED: ${TRAINING_CAPTURE_ENABLED:-true}
       TRAINING_CAPTURE_PATH: ${TRAINING_CAPTURE_PATH:-/app/data/kia_train.jsonl}
+      CONNECTORS_ENABLED: ${CONNECTORS_ENABLED:-false}
+      CONNECTORS_CONFIG: ${CONNECTORS_CONFIG:-/app/data/connectors.json}
+      CONNECTOR_PLANNER_MODEL: ${CONNECTOR_PLANNER_MODEL:-}
     volumes:
       - ./data:/app/data
     depends_on:

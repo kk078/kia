@@ -32,10 +32,7 @@ class Severity(StrEnum):
 _WEIGHT: dict[Severity, int] = {Severity.LOW: 15, Severity.MEDIUM: 40, Severity.HIGH: 80}
 
 # Invisible / zero-width / bidi-control chars used to smuggle hidden instructions.
-_INVISIBLE = re.compile(
-    "[​‌‍‎‏‪‫‬‭‮"
-    "⁠⁡⁢⁣⁤⁪⁫⁬⁭⁮⁯﻿]"
-)
+_INVISIBLE = re.compile("[​‌‍‎‏‪‫‬‭‮⁠⁡⁢⁣⁤⁪⁫⁬⁭⁮⁯﻿]")
 
 # (kind, severity, pattern)
 _INJECTION_PATTERNS: list[tuple[str, Severity, re.Pattern[str]]] = [

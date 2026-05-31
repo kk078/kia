@@ -12,9 +12,7 @@ from typing import Any
 _session_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
     "lf_session_id", default=None
 )
-_user_id: contextvars.ContextVar[str | None] = contextvars.ContextVar(
-    "lf_user_id", default=None
-)
+_user_id: contextvars.ContextVar[str | None] = contextvars.ContextVar("lf_user_id", default=None)
 
 
 def set_trace_context(session_id: str | None = None, user_id: str | None = None) -> None:

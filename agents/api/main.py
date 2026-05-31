@@ -260,6 +260,40 @@ async def training_stats() -> dict[str, Any]:
     return stats()
 
 
+@app.post("/api/v1/connectors/query")
+async def connectors_query(prompt: str, max_steps: int = 5) -> dict[str, Any]:
+    """Answer a prompt using connected MCP tools (hybrid tool-calling agent)."""
+    if not settings.connectors_enabled:
+        raise HTTPException(status_code=503, detail="Connectors disabled (CONNECTORS_ENABLED=true)")
+    from brain_connectors.agent import ConnectorAgent
+    from brain_connectors.client import MCPConnectorManager
+
+    manager = MCPConnectorManager(settings.connectors_config)
+    try:
+        await manager.connect()
+        answer = await ConnectorAgent(manager).run(prompt, max_steps=max_steps)
+        return {"answer": answer, "tools_available": len(manager.tools)}
+    except Exception as e:
+        raise _llm_error(e)
+    finally:
+        await manager.close()
+
+
+@app.get("/api/v1/connectors/list")
+async def connectors_list() -> dict[str, Any]:
+    """List the tools exposed by currently configured MCP connectors."""
+    if not settings.connectors_enabled:
+        raise HTTPException(status_code=503, detail="Connectors disabled (CONNECTORS_ENABLED=true)")
+    from brain_connectors.client import MCPConnectorManager
+
+    manager = MCPConnectorManager(settings.connectors_config)
+    try:
+        tools = await manager.connect()
+        return {"tools": [t["function"]["name"] for t in tools], "count": len(tools)}
+    finally:
+        await manager.close()
+
+
 @app.post("/api/v1/knowledge/index")
 async def index_document(content: str, source: str) -> dict[str, Any]:
     """Index a document in the knowledge base."""
