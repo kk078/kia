@@ -1,8 +1,9 @@
 """RAG (Retrieval-Augmented Generation) engine with response caching."""
 
 from brain_core.cache import ResponseCache, cache_key
+from brain_core.config import settings
 from brain_core.llm import LLMRouter
-from brain_core.security import sanitize_untrusted, wrap_untrusted
+from brain_core.security import sanitize_untrusted
 from brain_knowledge.retriever import ContextRetriever
 
 
@@ -23,14 +24,22 @@ class RAGEngine:
             return cached
 
         # Retrieve relevant context, then sanitize each chunk (untrusted content).
-        chunks = await self.retriever.retrieve_context(question, top_k=5)
+        # Higher top_k: embedded Chroma is vector-only (no BM25 hybrid), so a wider
+        # recall window ensures keyword-specific records (e.g. a city name) are included.
+        chunks = await self.retriever.retrieve_context(question, top_k=settings.rag_top_k)
+        # Sanitize each chunk (strips any injected instructions) but present the result as
+        # Kiran's OWN trusted knowledge base — not "untrusted data", which made the small
+        # local model refuse to answer from its own records.
         context = "\n\n".join(sanitize_untrusted(chunk.content).clean_text for chunk in chunks)
 
-        # Build prompt with the context wrapped as untrusted data (injection-safe).
         system_prompt = (
-            "You are KIA (Kiran's Intelligence Architecture), a personal AI assistant "
-            "running locally. Answer the user's question using only the reference data "
-            "provided below.\n\n" + wrap_untrusted(context, source="rag_context")
+            "You are KIA (Kiran's Intelligence Architecture), Kiran's personal assistant. "
+            "Below are records from Kiran's OWN trusted knowledge base. Treat them as "
+            "accurate and answer the question directly from them: find the record(s) that "
+            "match (e.g. by city, name, or field) and quote the specific values such as "
+            "company name, address, email, and phone. If truly none of the records match, "
+            "say you don't have that indexed yet.\n\n"
+            "=== KIRAN'S KNOWLEDGE BASE ===\n" + context + "\n=== END ==="
         )
         messages = [
             {"role": "system", "content": system_prompt},

@@ -60,18 +60,32 @@ async def _check_http(url: str) -> None:
 
 
 async def deep_health() -> dict[str, Any]:
-    """Probe all dependencies concurrently and roll up a degradation level."""
-    weaviate_ready = settings.weaviate_url.rstrip("/") + "/v1/.well-known/ready"
-    ollama_tags = settings.ollama_base_url.rstrip("/") + "/api/tags"
+    """Probe all dependencies concurrently and roll up a degradation level.
 
-    names = ["redis", "weaviate", "falkordb", "ollama"]
-    results = await asyncio.gather(
-        _timed(_check_redis(settings.redis_url)),
-        _timed(_check_http(weaviate_ready)),
-        _timed(_check_redis(settings.falkordb_url)),
-        _timed(_check_http(ollama_tags)),
-    )
+    Native deployment (vector_backend=chroma, storage_backend=sqlite) uses embedded
+    stores, so we don't probe Weaviate/Redis/FalkorDB servers — they don't exist and
+    would falsely report 'down'. Embedded stores are reported up (in-process).
+    """
+    ollama_tags = settings.ollama_base_url.rstrip("/") + "/api/tags"
+    native_vector = (settings.vector_backend or "weaviate").lower() == "chroma"
+    native_storage = (settings.storage_backend or "redis").lower() != "redis"
+
+    names = ["ollama"]
+    coros = [_timed(_check_http(ollama_tags))]
+    if not native_vector:
+        names.append("weaviate")
+        coros.append(_timed(_check_http(settings.weaviate_url.rstrip("/") + "/v1/.well-known/ready")))
+    if not native_storage:
+        names.extend(["redis", "falkordb"])
+        coros.append(_timed(_check_redis(settings.redis_url)))
+        coros.append(_timed(_check_redis(settings.falkordb_url)))
+
+    results = await asyncio.gather(*coros)
     components = dict(zip(names, results, strict=True))
+    if native_vector:
+        components["vector"] = {"status": "up", "backend": "chroma (embedded)"}
+    if native_storage:
+        components["storage"] = {"status": "up", "backend": "sqlite (embedded)"}
     level, reasons = _rollup(components)
     return {
         "status": level,

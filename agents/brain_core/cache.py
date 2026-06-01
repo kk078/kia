@@ -8,11 +8,15 @@ Best-effort: any Redis error degrades to a cache miss, never breaks the request.
 from __future__ import annotations
 
 import hashlib
+import time
 from typing import Any
 
-import redis.asyncio as redis
-
 from brain_core.config import settings
+
+# Process-local cache used when storage_backend != "redis" (native deployment).
+# Maps key -> (expiry_epoch, value). Single-process scope, which is exactly the
+# native deployment, so this fully replaces Redis for caching.
+_MEM: dict[str, tuple[float, str]] = {}
 
 
 def cache_key(namespace: str, *parts: str) -> str:
@@ -23,15 +27,26 @@ def cache_key(namespace: str, *parts: str) -> str:
 
 
 class ResponseCache:
-    """Async Redis cache for precomputed responses."""
+    """Async response cache (Redis server, or in-process dict in native mode)."""
 
     def __init__(self) -> None:
-        """Initialize the cache with a Redis connection."""
-        self._redis: Any = redis.from_url(settings.redis_url, decode_responses=True)
+        """Pick the backend; only connect to Redis when that backend is selected."""
+        self._mem = (settings.storage_backend or "redis").lower() != "redis"
+        self._redis: Any = None
+        if not self._mem:
+            import redis.asyncio as redis
+
+            self._redis = redis.from_url(settings.redis_url, decode_responses=True)
 
     async def get(self, key: str) -> str | None:
         """Return a cached value, or None on miss/error."""
         if not settings.cache_enabled:
+            return None
+        if self._mem:
+            hit = _MEM.get(key)
+            if hit and hit[0] > time.time():
+                return hit[1]
+            _MEM.pop(key, None)
             return None
         try:
             val = await self._redis.get(key)
@@ -43,14 +58,18 @@ class ResponseCache:
         """Store a value with a TTL (seconds); best-effort."""
         if not settings.cache_enabled:
             return
+        if self._mem:
+            _MEM[key] = (time.time() + float(ttl or settings.cache_ttl_seconds), value)
+            return
         try:
             await self._redis.set(key, value, ex=ttl or settings.cache_ttl_seconds)
         except Exception:
             return
 
     async def close(self) -> None:
-        """Close the Redis connection."""
-        try:
-            await self._redis.aclose()
-        except Exception:
-            return
+        """Close the Redis connection (no-op in native mode)."""
+        if self._redis is not None:
+            try:
+                await self._redis.aclose()
+            except Exception:
+                return

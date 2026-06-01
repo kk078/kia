@@ -452,9 +452,9 @@ class StreamChatRequest(BaseModel):
 @app.post("/api/v1/conversations")
 async def create_conversation(request: Request, body: NewConversation) -> dict[str, Any]:
     """Create a new conversation for the current user."""
-    from brain_memory.conversations import ConversationStore
+    from brain_memory.conversations import make_conversation_store
 
-    store = ConversationStore()
+    store = make_conversation_store()
     try:
         return await store.create(_user_from(request), body.title)
     finally:
@@ -464,9 +464,9 @@ async def create_conversation(request: Request, body: NewConversation) -> dict[s
 @app.get("/api/v1/conversations")
 async def list_conversations(request: Request, limit: int = 50) -> list[dict[str, Any]]:
     """List the current user's conversations, most recent first."""
-    from brain_memory.conversations import ConversationStore
+    from brain_memory.conversations import make_conversation_store
 
-    store = ConversationStore()
+    store = make_conversation_store()
     try:
         return await store.list(_user_from(request), limit)
     finally:
@@ -476,9 +476,9 @@ async def list_conversations(request: Request, limit: int = 50) -> list[dict[str
 @app.get("/api/v1/conversations/{conversation_id}")
 async def get_conversation(conversation_id: str) -> dict[str, Any]:
     """Return a conversation's metadata + ordered messages."""
-    from brain_memory.conversations import ConversationStore
+    from brain_memory.conversations import make_conversation_store
 
-    store = ConversationStore()
+    store = make_conversation_store()
     try:
         meta = await store.get_meta(conversation_id)
         if meta is None:
@@ -492,9 +492,9 @@ async def get_conversation(conversation_id: str) -> dict[str, Any]:
 @app.patch("/api/v1/conversations/{conversation_id}")
 async def rename_conversation(conversation_id: str, body: RenameConversation) -> dict[str, str]:
     """Rename a conversation."""
-    from brain_memory.conversations import ConversationStore
+    from brain_memory.conversations import make_conversation_store
 
-    store = ConversationStore()
+    store = make_conversation_store()
     try:
         ok = await store.rename(conversation_id, body.title)
         if not ok:
@@ -507,9 +507,9 @@ async def rename_conversation(conversation_id: str, body: RenameConversation) ->
 @app.delete("/api/v1/conversations/{conversation_id}")
 async def delete_conversation(conversation_id: str) -> dict[str, str]:
     """Delete a conversation (user-initiated)."""
-    from brain_memory.conversations import ConversationStore
+    from brain_memory.conversations import make_conversation_store
 
-    store = ConversationStore()
+    store = make_conversation_store()
     try:
         await store.delete(conversation_id)
         return {"status": "deleted"}
@@ -526,9 +526,9 @@ class AppendMessages(BaseModel):
 @app.post("/api/v1/conversations/{conversation_id}/messages")
 async def append_messages(conversation_id: str, body: AppendMessages) -> dict[str, Any]:
     """Append turns to a conversation (used to persist non-streamed slash commands)."""
-    from brain_memory.conversations import ConversationStore
+    from brain_memory.conversations import make_conversation_store
 
-    store = ConversationStore()
+    store = make_conversation_store()
     try:
         count = 0
         for m in body.messages:
@@ -648,14 +648,10 @@ async def ingest_document(item: IngestItem) -> dict[str, Any]:
 @app.post("/api/v1/knowledge/clear")
 async def clear_knowledge(collection: str = "KiaKnowledge") -> dict[str, str]:
     """Delete a knowledge collection so a re-index does not create duplicates."""
-    from brain_knowledge.vector_store import get_weaviate_client
+    from brain_knowledge.vector_store import clear_collection
 
     try:
-        client = get_weaviate_client()
-        try:
-            client.collections.delete(collection)
-        finally:
-            client.close()
+        clear_collection(collection)
         return {"status": "cleared", "collection": collection}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

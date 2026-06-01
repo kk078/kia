@@ -1,18 +1,19 @@
-"""Shared Weaviate client / vector-store factory for the knowledge layer.
+"""Vector-store factory for the knowledge layer (backend-selectable).
 
-Centralizes the Weaviate v4 client connection (parsed from ``settings.weaviate_url``)
-so the indexer and retriever use a real, connected client instead of ``None``,
-and configures LlamaIndex to use a LOCAL Ollama embedding model (provider-free)
-instead of defaulting to OpenAI.
+Two backends, chosen by ``settings.vector_backend``:
+  * ``weaviate`` (default) — the containerized Weaviate server (Docker/Podman).
+  * ``chroma``   — an EMBEDDED ChromaDB that runs in-process and persists to
+                   ``settings.chroma_path``. No server, no container, no VM —
+                   used for the fully-native deployment.
+
+Either way LlamaIndex is configured to embed with a LOCAL Ollama model
+(provider-free). Heavy backend imports are lazy so only the selected backend's
+package needs to be importable.
 """
 
 from __future__ import annotations
 
 from typing import Any
-
-import weaviate
-from llama_index.vector_stores.weaviate import WeaviateVectorStore
-from weaviate.classes.init import AdditionalConfig
 
 from brain_core.config import settings
 
@@ -20,6 +21,10 @@ KNOWLEDGE_COLLECTION = "KiaKnowledge"
 CODEBASE_COLLECTION = "KiaCodebase"
 
 _embed_configured = False
+
+
+def _backend() -> str:
+    return (settings.vector_backend or "weaviate").lower()
 
 
 def _configure_local_embeddings() -> None:
@@ -40,6 +45,9 @@ def _configure_local_embeddings() -> None:
 
 def get_weaviate_client() -> Any:
     """Connect a Weaviate v4 client from settings.weaviate_url (http host:port)."""
+    import weaviate
+    from weaviate.classes.init import AdditionalConfig
+
     url = settings.weaviate_url.replace("http://", "").replace("https://", "")
     host, _, port_str = url.partition(":")
     port = int(port_str) if port_str else 8080
@@ -48,7 +56,39 @@ def get_weaviate_client() -> Any:
     )
 
 
+def _chroma_collection(index_name: str) -> Any:
+    """Get/create a persistent embedded Chroma collection."""
+    import chromadb
+
+    client = chromadb.PersistentClient(path=settings.chroma_path)
+    return client.get_or_create_collection(index_name)
+
+
 def get_vector_store(index_name: str = KNOWLEDGE_COLLECTION) -> Any:
-    """Return a LlamaIndex WeaviateVectorStore backed by a real client (local embeddings)."""
+    """Return a LlamaIndex vector store for the selected backend (local embeddings)."""
     _configure_local_embeddings()
+    if _backend() == "chroma":
+        from llama_index.vector_stores.chroma import ChromaVectorStore
+
+        return ChromaVectorStore(chroma_collection=_chroma_collection(index_name))
+    from llama_index.vector_stores.weaviate import WeaviateVectorStore
+
     return WeaviateVectorStore(weaviate_client=get_weaviate_client(), index_name=index_name)
+
+
+def clear_collection(index_name: str = KNOWLEDGE_COLLECTION) -> None:
+    """Delete a collection so a re-index does not create duplicates (backend-aware)."""
+    if _backend() == "chroma":
+        import chromadb
+
+        client = chromadb.PersistentClient(path=settings.chroma_path)
+        try:
+            client.delete_collection(index_name)
+        except Exception:
+            pass
+        return
+    client = get_weaviate_client()
+    try:
+        client.collections.delete(index_name)
+    finally:
+        client.close()

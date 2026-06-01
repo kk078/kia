@@ -10,6 +10,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",  # tolerate unrelated keys in .env (GATEWAY_PORT, OLLAMA_API_KEY, ...)
     )
 
     # Infrastructure
@@ -73,6 +74,13 @@ class Settings(BaseSettings):
 
     # Local embedding model for LlamaIndex vector RAG (provider-free, via Ollama).
     embed_model: str = "nomic-embed-text"
+    rag_top_k: int = 15  # retrieval window; wide enough for vector-only recall on the KB
+
+    # Storage backends. Native (no Docker/WSL) deployment uses embedded stores.
+    vector_backend: str = "weaviate"  # "weaviate" (server) | "chroma" (embedded, in-process)
+    chroma_path: str = "/app/data/chroma"
+    storage_backend: str = "redis"  # "redis" (server) | "sqlite" (embedded file)
+    sqlite_path: str = "/app/data/kia.db"
 
     # Verification / self-consistency (sample N candidates + judge). Opt-in (N x cost).
     verify_enabled: bool = False  # global force-on; usually False (auto_verify decides)

@@ -191,3 +191,12 @@ class ConversationStore:
             await self._redis.aclose()
         except Exception:
             return
+
+
+def make_conversation_store() -> Any:
+    """Return the conversation store for the configured backend (redis | sqlite)."""
+    if (settings.storage_backend or "redis").lower() == "sqlite":
+        from brain_memory.conversations_sqlite import SqliteConversationStore
+
+        return SqliteConversationStore()
+    return ConversationStore()
