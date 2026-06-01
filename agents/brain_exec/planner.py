@@ -27,6 +27,12 @@ Rules:
   e.g. `winget install -e --id <Id>` skips when the app is already installed.
 - For an install task, you MAY start with a quick check (e.g. `winget list <name>`)
   so the result shows whether it was already present.
+- Include any PRECONDITION needed for the change to ACTUALLY TAKE EFFECT — e.g. close
+  a running app before upgrading it so an in-place upgrade isn't merely staged
+  (Windows: `Stop-Process -Name <proc> -Force -ErrorAction SilentlyContinue`).
+- When the task has a checkable end state, make the LAST command a VERIFICATION that
+  proves it (re-check the installed version, that a file/service/app exists), so
+  success is confirmed from real output, not assumed from an exit code.
 - Mark anything that deletes data, needs admin, changes system config, or
   downloads+runs a script as "high".
 - If the task is unclear or unsafe, return an empty array [].
@@ -107,8 +113,11 @@ class CommandPlanner:
         messages = [
             {
                 "role": "system",
-                "content": "Summarize whether the task succeeded based on these command "
-                "results. Be concise and call out any failures + next step.",
+                "content": "Decide whether the task's GOAL was actually achieved. Use the "
+                "FINAL verification command's output as the source of truth — not just exit "
+                "codes (a command can exit 0 yet leave the goal incomplete, e.g. an upgrade "
+                "that only staged). State the confirmed end state explicitly (e.g. the version "
+                "now installed). If the goal was NOT achieved, say so plainly and give the fix.",
             },
             {"role": "user", "content": f"Task: {task}\n\nResults:\n{transcript}"},
         ]
