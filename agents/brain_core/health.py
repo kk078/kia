@@ -73,8 +73,9 @@ async def deep_health() -> dict[str, Any]:
     names = ["ollama"]
     coros = [_timed(_check_http(ollama_tags))]
     if not native_vector:
+        ready_url = settings.weaviate_url.rstrip("/") + "/v1/.well-known/ready"
         names.append("weaviate")
-        coros.append(_timed(_check_http(settings.weaviate_url.rstrip("/") + "/v1/.well-known/ready")))
+        coros.append(_timed(_check_http(ready_url)))
     if not native_storage:
         names.extend(["redis", "falkordb"])
         coros.append(_timed(_check_redis(settings.redis_url)))

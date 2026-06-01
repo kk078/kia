@@ -456,7 +456,8 @@ async def create_conversation(request: Request, body: NewConversation) -> dict[s
 
     store = make_conversation_store()
     try:
-        return await store.create(_user_from(request), body.title)
+        meta: dict[str, Any] = await store.create(_user_from(request), body.title)
+        return meta
     finally:
         await store.close()
 
@@ -468,7 +469,8 @@ async def list_conversations(request: Request, limit: int = 50) -> list[dict[str
 
     store = make_conversation_store()
     try:
-        return await store.list(_user_from(request), limit)
+        convs: list[dict[str, Any]] = await store.list(_user_from(request), limit)
+        return convs
     finally:
         await store.close()
 

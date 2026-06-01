@@ -76,6 +76,7 @@ module = [
     "weaviate.*",
     "langgraph.*",
     "llama_index.*",
+    "chromadb.*",
     "agno.*",
     "crewai.*",
     "watchdog.*",

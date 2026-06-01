@@ -188,9 +188,7 @@ class SqliteConversationStore:
         def _do() -> bool:
             new_title = title.strip()[:120] or _DEFAULT_TITLE
             with _connect() as c:
-                cur = c.execute(
-                    "UPDATE conversations SET title=? WHERE id=?", (new_title, conv_id)
-                )
+                cur = c.execute("UPDATE conversations SET title=? WHERE id=?", (new_title, conv_id))
                 return cur.rowcount > 0
 
         try:
