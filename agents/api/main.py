@@ -394,6 +394,26 @@ async def exec_run(body: ExecRunRequest) -> dict[str, Any]:
     return {"command": command, **result}
 
 
+class ExecSummaryRequest(BaseModel):
+    """Results of an executed plan, to summarize in plain language."""
+
+    task: str
+    results: list[dict[str, Any]]
+
+
+@app.post("/api/v1/exec/summary")
+async def exec_summary(body: ExecSummaryRequest) -> dict[str, str]:
+    """Summarize what happened after running a plan (did it work / was it already done)."""
+    if not settings.exec_enabled:
+        raise HTTPException(status_code=503, detail="Execution disabled (set EXEC_ENABLED=true)")
+    from brain_exec.planner import CommandPlanner
+
+    try:
+        return {"summary": await CommandPlanner().summarize(body.task, body.results)}
+    except Exception as e:
+        raise _llm_error(e)
+
+
 # ---------------------------------------------------------------------------
 # Conversation history (durable, Redis-backed) + streaming chat
 # ---------------------------------------------------------------------------

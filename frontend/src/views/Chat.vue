@@ -375,6 +375,7 @@ const sendMessage = async () => {
 const runPlan = async (msg) => {
   const plan = msg.plan
   plan.state = 'running'
+  const results = []
   for (let i = 0; i < plan.commands.length; i++) {
     const c = plan.commands[i]
     c.status = 'running'; scrollToBottom()
@@ -382,14 +383,21 @@ const runPlan = async (msg) => {
       const d = (await api.execRun(plan.id, i)).data
       c.status = d.ok ? 'done' : 'error'
       c.output = `exit ${d.exit_code}` + (d.stdout ? `\n${d.stdout}` : '') + (d.stderr ? `\n${d.stderr}` : '')
+      results.push({ command: d.command, exit_code: d.exit_code, stdout: d.stdout, stderr: d.stderr })
     } catch (e) {
       c.status = 'error'; c.output = errText(e)
+      results.push({ command: c.command, exit_code: -1, stdout: '', stderr: errText(e) })
     }
     scrollToBottom()
   }
   plan.state = 'done'; scrollToBottom()
-  persistTurn('/build ' + plan.task,
-    `Ran ${plan.commands.length} command(s) on the host for "${plan.task}".`)
+  // Summarize what actually happened (installed / already present / failed) in plain language.
+  let summary = `Ran ${plan.commands.length} command(s) for "${plan.task}".`
+  try {
+    summary = (await api.execSummary(plan.task, results)).data.summary || summary
+  } catch { /* fall back to the generic line */ }
+  pushAI(summary)
+  persistTurn('/build ' + plan.task, summary)
 }
 
 const newChat = () => {

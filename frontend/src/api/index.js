@@ -123,6 +123,9 @@ export default {
   execRun(planId, index) {
     return api.post('/exec/run', { plan_id: planId, index })
   },
+  execSummary(task, results) {
+    return api.post('/exec/summary', { task, results })
+  },
 
   // Streaming chat. onToken(text) is called per chunk; resolves with {conversationId, model}.
   // Uses fetch + ReadableStream to read Server-Sent Events (axios can't stream in-browser).

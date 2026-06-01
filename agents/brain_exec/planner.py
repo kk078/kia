@@ -23,6 +23,10 @@ Rules:
 - One command per element; order them as they should run.
 - Prefer official, idiomatic install methods for the OS
   (Windows: winget/choco/official installer; macOS: brew; Linux: native package manager).
+- Prefer commands that are SAFE TO RE-RUN and no-op if already done (idempotent),
+  e.g. `winget install -e --id <Id>` skips when the app is already installed.
+- For an install task, you MAY start with a quick check (e.g. `winget list <name>`)
+  so the result shows whether it was already present.
 - Mark anything that deletes data, needs admin, changes system config, or
   downloads+runs a script as "high".
 - If the task is unclear or unsafe, return an empty array [].
@@ -95,7 +99,9 @@ class CommandPlanner:
         """Summarize execution results in plain language."""
         model, kwargs = self._planner_model()
         transcript = "\n".join(
-            f"$ {r.get('command', '')}\nexit={r.get('exit_code')} {r.get('stderr', '')[:300]}"
+            f"$ {r.get('command', '')}\n"
+            f"exit={r.get('exit_code')}\n"
+            f"{(r.get('stdout', '') or '')[:600]}\n{(r.get('stderr', '') or '')[:300]}"
             for r in results
         )
         messages = [
