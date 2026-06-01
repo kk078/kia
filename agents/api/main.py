@@ -1,11 +1,14 @@
 """Python FastAPI Gateway for Secondary Brain."""
 
+import json
 import traceback
+from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.openai_compat import router as openai_router
@@ -77,6 +80,15 @@ async def metrics_endpoint() -> Response:
     from brain_core.metrics import render_prometheus
 
     return Response(content=render_prometheus(), media_type="text/plain; version=0.0.4")
+
+
+@app.get("/health/deep")
+@app.get("/api/v1/health/deep")
+async def deep_health_check() -> dict[str, Any]:
+    """Probe every dependency and roll up a degradation level (healthy/degraded/critical)."""
+    from brain_core.health import deep_health
+
+    return await deep_health()
 
 
 @app.get("/api/v1/status")
@@ -214,17 +226,22 @@ async def generate_text(
     verify: bool = False,
 ) -> dict[str, str]:
     """Generate text using LLM router (optionally with self-consistency verification)."""
+    from brain_core.fallback import resilient_generate
     from brain_core.llm import LLMRouter
 
     try:
         router = LLMRouter()
         auto = settings.auto_verify and needs_deep_reasoning(prompt, task_type)
         if verify or settings.verify_enabled or auto:
+            # Verification path is reasoning-heavy; keep it (no silent fallback mid-judge).
             response = await router.generate_verified(
                 prompt, task_type=task_type, model=model, system=KIA_SYSTEM, force=True
             )
         else:
-            response = await router.generate(prompt, task_type, model, system=KIA_SYSTEM)
+            # Fault-tolerant path: cloud→local fallback with circuit breakers.
+            response, _model_used = await resilient_generate(
+                router, prompt, task_type=task_type, model=model, system=KIA_SYSTEM
+            )
         capture(prompt, response, source="chat", model=model or "")
         return {"response": response}
     except Exception as e:
@@ -267,12 +284,25 @@ async def connectors_query(prompt: str, max_steps: int = 5) -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="Connectors disabled (CONNECTORS_ENABLED=true)")
     from brain_connectors.agent import ConnectorAgent
     from brain_connectors.client import MCPConnectorManager
+    from brain_core.circuit_breaker import CircuitOpenError
+    from brain_core.fallback import get_breaker
 
+    breaker = get_breaker("connectors")
     manager = MCPConnectorManager(settings.connectors_config)
     try:
         await manager.connect()
-        answer = await ConnectorAgent(manager).run(prompt, max_steps=max_steps)
+
+        async def _run() -> str:
+            return await ConnectorAgent(manager).run(prompt, max_steps=max_steps)
+
+        # Circuit breaker: if connectors keep failing, fast-fail instead of stalling.
+        answer = await breaker.call(_run)
         return {"answer": answer, "tools_available": len(manager.tools)}
+    except CircuitOpenError:
+        raise HTTPException(
+            status_code=503,
+            detail="Connector subsystem temporarily disabled after repeated failures; retry soon.",
+        )
     except Exception as e:
         raise _llm_error(e)
     finally:
@@ -292,6 +322,199 @@ async def connectors_list() -> dict[str, Any]:
         return {"tools": [t["function"]["name"] for t in tools], "count": len(tools)}
     finally:
         await manager.close()
+
+
+# ---------------------------------------------------------------------------
+# Conversation history (durable, Redis-backed) + streaming chat
+# ---------------------------------------------------------------------------
+
+
+def _user_from(request: Request) -> str:
+    """Resolve the user id from Cloudflare Access headers (single-user → 'default')."""
+    return (
+        request.headers.get("x-auth-user")
+        or request.headers.get("cf-access-authenticated-user-email")
+        or "default"
+    )
+
+
+class NewConversation(BaseModel):
+    """Optional title for a new conversation."""
+
+    title: str | None = None
+
+
+class RenameConversation(BaseModel):
+    """New title for an existing conversation."""
+
+    title: str
+
+
+class StreamChatRequest(BaseModel):
+    """Body for the streaming chat endpoint."""
+
+    message: str
+    conversation_id: str | None = None
+    task_type: str = "simple"
+    model: str | None = None
+
+
+@app.post("/api/v1/conversations")
+async def create_conversation(request: Request, body: NewConversation) -> dict[str, Any]:
+    """Create a new conversation for the current user."""
+    from brain_memory.conversations import ConversationStore
+
+    store = ConversationStore()
+    try:
+        return await store.create(_user_from(request), body.title)
+    finally:
+        await store.close()
+
+
+@app.get("/api/v1/conversations")
+async def list_conversations(request: Request, limit: int = 50) -> list[dict[str, Any]]:
+    """List the current user's conversations, most recent first."""
+    from brain_memory.conversations import ConversationStore
+
+    store = ConversationStore()
+    try:
+        return await store.list(_user_from(request), limit)
+    finally:
+        await store.close()
+
+
+@app.get("/api/v1/conversations/{conversation_id}")
+async def get_conversation(conversation_id: str) -> dict[str, Any]:
+    """Return a conversation's metadata + ordered messages."""
+    from brain_memory.conversations import ConversationStore
+
+    store = ConversationStore()
+    try:
+        meta = await store.get_meta(conversation_id)
+        if meta is None:
+            raise HTTPException(status_code=404, detail="conversation not found")
+        messages = await store.messages(conversation_id)
+        return {"conversation": meta, "messages": messages}
+    finally:
+        await store.close()
+
+
+@app.patch("/api/v1/conversations/{conversation_id}")
+async def rename_conversation(conversation_id: str, body: RenameConversation) -> dict[str, str]:
+    """Rename a conversation."""
+    from brain_memory.conversations import ConversationStore
+
+    store = ConversationStore()
+    try:
+        ok = await store.rename(conversation_id, body.title)
+        if not ok:
+            raise HTTPException(status_code=404, detail="conversation not found")
+        return {"status": "renamed"}
+    finally:
+        await store.close()
+
+
+@app.delete("/api/v1/conversations/{conversation_id}")
+async def delete_conversation(conversation_id: str) -> dict[str, str]:
+    """Delete a conversation (user-initiated)."""
+    from brain_memory.conversations import ConversationStore
+
+    store = ConversationStore()
+    try:
+        await store.delete(conversation_id)
+        return {"status": "deleted"}
+    finally:
+        await store.close()
+
+
+class AppendMessages(BaseModel):
+    """Append one or more {role, content} turns to a conversation."""
+
+    messages: list[dict[str, str]]
+
+
+@app.post("/api/v1/conversations/{conversation_id}/messages")
+async def append_messages(conversation_id: str, body: AppendMessages) -> dict[str, Any]:
+    """Append turns to a conversation (used to persist non-streamed slash commands)."""
+    from brain_memory.conversations import ConversationStore
+
+    store = ConversationStore()
+    try:
+        count = 0
+        for m in body.messages:
+            role = m.get("role", "user")
+            content = m.get("content", "")
+            if content and role in ("user", "assistant"):
+                if await store.append(conversation_id, role, content):
+                    count += 1
+        return {"status": "appended", "count": count}
+    finally:
+        await store.close()
+
+
+def _sse(payload: dict[str, Any]) -> str:
+    """Encode one Server-Sent Event line."""
+    return "data: " + json.dumps(payload, ensure_ascii=False) + "\n\n"
+
+
+@app.post("/api/v1/chat/stream")
+async def chat_stream(request: Request, body: StreamChatRequest) -> StreamingResponse:
+    """Stream a chat reply token-by-token (SSE) with cloud→local fallback, and
+    persist both the user message and the full reply to durable history."""
+    from brain_core.fallback import resilient_stream
+    from brain_core.llm import LLMRouter
+    from brain_memory.conversations import ConversationStore
+
+    user_id = _user_from(request)
+    store = ConversationStore()
+    router = LLMRouter()
+
+    # Ensure a conversation exists, then persist the user's message up-front so it
+    # is never lost even if the stream is interrupted.
+    conv_id = body.conversation_id
+    if not conv_id:
+        meta = await store.create(user_id)
+        conv_id = str(meta["id"])
+    prior = await store.messages(conv_id)
+    await store.append(conv_id, "user", body.message)
+
+    # Build the LLM message list: persona + recent history + new user turn.
+    llm_messages: list[dict[str, str]] = [{"role": "system", "content": KIA_SYSTEM}]
+    for m in prior[-20:]:
+        role = m.get("role", "user")
+        content = m.get("content", "")
+        if role in ("user", "assistant") and content:
+            llm_messages.append({"role": role, "content": content})
+    llm_messages.append({"role": "user", "content": body.message})
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        yield _sse({"type": "meta", "conversation_id": conv_id})
+        full: list[str] = []
+        model_used = "unknown"
+        try:
+            async for piece, used in resilient_stream(
+                router, llm_messages, task_type=body.task_type, model=body.model
+            ):
+                model_used = used
+                full.append(piece)
+                yield _sse({"type": "token", "content": piece})
+        except Exception as e:  # never break the SSE contract
+            yield _sse({"type": "token", "content": f"\n\n[KIA error: {type(e).__name__}]"})
+        answer = "".join(full)
+        await store.append(conv_id, "assistant", answer)
+        try:
+            capture(body.message, answer, source="chat-stream", model=model_used)
+        except Exception:
+            pass
+        await store.close()
+        yield _sse({"type": "done", "conversation_id": conv_id, "model": model_used})
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @app.post("/api/v1/knowledge/index")
@@ -433,12 +656,23 @@ async def graphrag_query(question: str) -> dict[str, str]:
 async def rag_query(
     question: str, model: str | None = None, session_id: str | None = None
 ) -> dict[str, str]:
-    """Answer a question using RAG."""
+    """Answer a question using RAG, degrading to plain generation if retrieval is down."""
     from brain_knowledge.rag import RAGEngine
 
     try:
         rag = RAGEngine()
         answer = await rag.query(question, model)
         return {"answer": answer}
-    except Exception as e:
-        raise _llm_error(e)
+    except Exception:
+        # Graceful degradation: Weaviate/retrieval unavailable → answer from the model
+        # alone (with a note) rather than failing the request outright.
+        from brain_core.fallback import resilient_generate
+        from brain_core.llm import LLMRouter
+
+        try:
+            text, _used = await resilient_generate(
+                LLMRouter(), question, task_type="research", model=model, system=KIA_SYSTEM
+            )
+            return {"answer": text, "degraded": "retrieval unavailable — answered without sources"}
+        except Exception as e:
+            raise _llm_error(e)

@@ -1,77 +1,107 @@
 <template>
-  <div class="mx-auto" style="max-width:820px">
-    <!-- Header -->
-    <div class="flex items-center justify-between mb-5">
-      <div>
-        <h1 style="font-size:1.9rem;font-weight:700">Chat</h1>
-        <p style="color:var(--text-2);font-size:.9rem;margin-top:2px">Talk to KIA · runs locally</p>
+  <div class="kia-chat-layout">
+    <!-- History sidebar -->
+    <aside class="kia-card kia-history">
+      <div class="kia-history-head">
+        <span style="font-weight:700">Chats</span>
+        <button @click="newChat" class="kia-btn-soft" style="padding:.35rem .6rem;font-size:.82rem">
+          <i class="fas fa-plus"></i> New
+        </button>
       </div>
-      <button @click="newChat" class="kia-btn-soft">
-        <i class="fas fa-plus"></i> New chat
-      </button>
-    </div>
-
-    <!-- Conversation -->
-    <div class="kia-card kia-card-lg" style="display:flex;flex-direction:column;height:62vh;min-height:440px;overflow:hidden">
-      <div ref="messagesContainer" class="flex-1 overflow-y-auto" style="padding:1.5rem">
-        <!-- Empty state -->
-        <div v-if="messages.length === 0" class="flex flex-col items-center justify-center text-center" style="height:100%;color:var(--text-2)">
-          <KiaLogo :size="56" :wordmark="false" />
-          <p style="font-size:1.15rem;font-weight:600;color:var(--text);margin-top:1rem">How can I help, Kiran?</p>
-          <div class="flex flex-wrap justify-center gap-2" style="margin-top:1rem;max-width:520px">
-            <span class="kia-hint"><code>/learn</code> teach KIA</span>
-            <span class="kia-hint"><code>/brain</code> ask its memory</span>
-            <span class="kia-hint"><code>/use</code> call connectors</span>
-          </div>
+      <div class="kia-history-list">
+        <div v-if="conversations.length === 0" style="color:var(--text-3);font-size:.85rem;padding:.6rem .4rem">
+          No saved chats yet.
         </div>
+        <button
+          v-for="c in conversations" :key="c.id"
+          @click="openConversation(c.id)"
+          class="kia-history-item"
+          :class="{ active: c.id === activeId }">
+          <span class="kia-history-title">{{ c.title }}</span>
+          <i class="fas fa-trash kia-history-del" @click.stop="deleteConv(c.id)" title="Delete"></i>
+        </button>
+      </div>
+    </aside>
 
-        <!-- Messages -->
-        <div v-for="(msg, idx) in messages" :key="idx"
-             class="kia-rise"
-             :style="{ display:'flex', justifyContent: msg.role==='user' ? 'flex-end':'flex-start', marginBottom:'1rem' }">
-          <div v-if="msg.role !== 'user'" class="shrink-0" style="margin-right:.6rem;margin-top:2px">
-            <KiaLogo :size="26" :wordmark="false" />
-          </div>
-          <div :class="msg.role === 'user' ? 'kia-bubble-user' : 'kia-bubble-ai'">
-            <div class="kia-bubble-text" v-html="render(msg.content)"></div>
-          </div>
-        </div>
-
-        <!-- Typing -->
-        <div v-if="loading" style="display:flex;align-items:center;margin-bottom:1rem">
-          <div class="shrink-0" style="margin-right:.6rem"><KiaLogo :size="26" :wordmark="false" /></div>
-          <div class="kia-bubble-ai" style="padding:.85rem 1rem">
-            <span class="kia-dot"></span><span class="kia-dot"></span><span class="kia-dot"></span>
-          </div>
+    <!-- Main chat -->
+    <div class="kia-chat-main">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h1 style="font-size:1.9rem;font-weight:700">Chat</h1>
+          <p style="color:var(--text-2);font-size:.9rem;margin-top:2px">Talk to KIA · runs locally · history saved</p>
         </div>
       </div>
 
-      <!-- Composer -->
-      <div style="border-top:1px solid var(--hairline);padding:.9rem 1rem;background:var(--surface-2)">
-        <div class="flex items-end" style="gap:.6rem">
-          <textarea
-            v-model="input"
-            @keydown.enter.exact.prevent="sendMessage"
-            :disabled="loading"
-            rows="1"
-            ref="ta"
-            @input="autoGrow"
-            placeholder="Message KIA…"
-            class="kia-textarea"
-            style="max-height:140px;background:var(--surface)"
-          ></textarea>
-          <button @click="sendMessage" :disabled="loading || !input.trim()" class="kia-btn" style="padding:.7rem .9rem;border-radius:50%;width:44px;height:44px;flex-shrink:0">
-            <i class="fas fa-arrow-up"></i>
-          </button>
-        </div>
-        <!-- Task type segmented control -->
-        <div class="flex items-center justify-between" style="margin-top:.7rem">
-          <div class="kia-segment">
-            <button v-for="type in taskTypes" :key="type"
-                    @click="taskType = type"
-                    :class="{ active: taskType === type }">{{ type }}</button>
+      <!-- Degradation banner -->
+      <div v-if="health && health.status !== 'healthy'" class="kia-banner" :class="health.status">
+        <i class="fas" :class="health.status === 'critical' ? 'fa-triangle-exclamation' : 'fa-circle-info'"></i>
+        <span>{{ (health.reasons && health.reasons[0]) || 'Some services are degraded.' }}</span>
+      </div>
+
+      <div class="kia-card kia-card-lg" style="display:flex;flex-direction:column;height:62vh;min-height:440px;overflow:hidden">
+        <div ref="messagesContainer" class="flex-1 overflow-y-auto" style="padding:1.5rem">
+          <!-- Empty state -->
+          <div v-if="messages.length === 0" class="flex flex-col items-center justify-center text-center" style="height:100%;color:var(--text-2)">
+            <KiaLogo :size="56" :wordmark="false" />
+            <p style="font-size:1.15rem;font-weight:600;color:var(--text);margin-top:1rem">How can I help, Kiran?</p>
+            <div class="flex flex-wrap justify-center gap-2" style="margin-top:1rem;max-width:520px">
+              <span class="kia-hint"><code>/learn</code> teach KIA</span>
+              <span class="kia-hint"><code>/brain</code> ask its memory</span>
+              <span class="kia-hint"><code>/use</code> call connectors</span>
+            </div>
           </div>
-          <span style="color:var(--text-3);font-size:.78rem">↵ send · ⇧↵ newline</span>
+
+          <!-- Messages -->
+          <div v-for="(msg, idx) in messages" :key="idx"
+               class="kia-rise"
+               :style="{ display:'flex', justifyContent: msg.role==='user' ? 'flex-end':'flex-start', marginBottom:'1rem' }">
+            <div v-if="msg.role !== 'user'" class="shrink-0" style="margin-right:.6rem;margin-top:2px">
+              <KiaLogo :size="26" :wordmark="false" />
+            </div>
+            <div :class="msg.role === 'user' ? 'kia-bubble-user' : 'kia-bubble-ai'">
+              <div class="kia-bubble-text" v-html="render(msg.content)"></div>
+              <span v-if="msg.streaming && !msg.content" class="kia-dot"></span>
+              <span v-if="msg.streaming && !msg.content" class="kia-dot"></span>
+              <span v-if="msg.streaming && !msg.content" class="kia-dot"></span>
+              <span v-if="msg.streaming && msg.content" class="kia-caret">▍</span>
+            </div>
+          </div>
+
+          <!-- Non-stream loading (slash commands) -->
+          <div v-if="loading" style="display:flex;align-items:center;margin-bottom:1rem">
+            <div class="shrink-0" style="margin-right:.6rem"><KiaLogo :size="26" :wordmark="false" /></div>
+            <div class="kia-bubble-ai" style="padding:.85rem 1rem">
+              <span class="kia-dot"></span><span class="kia-dot"></span><span class="kia-dot"></span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Composer -->
+        <div style="border-top:1px solid var(--hairline);padding:.9rem 1rem;background:var(--surface-2)">
+          <div class="flex items-end" style="gap:.6rem">
+            <textarea
+              v-model="input"
+              @keydown.enter.exact.prevent="sendMessage"
+              :disabled="loading || streaming"
+              rows="1"
+              ref="ta"
+              @input="autoGrow"
+              placeholder="Message KIA…"
+              class="kia-textarea"
+              style="max-height:140px;background:var(--surface)"
+            ></textarea>
+            <button @click="sendMessage" :disabled="loading || streaming || !input.trim()" class="kia-btn" style="padding:.7rem .9rem;border-radius:50%;width:44px;height:44px;flex-shrink:0">
+              <i class="fas fa-arrow-up"></i>
+            </button>
+          </div>
+          <div class="flex items-center justify-between" style="margin-top:.7rem">
+            <div class="kia-segment">
+              <button v-for="type in taskTypes" :key="type"
+                      @click="taskType = type"
+                      :class="{ active: taskType === type }">{{ type }}</button>
+            </div>
+            <span style="color:var(--text-3);font-size:.78rem">↵ send · ⇧↵ newline</span>
+          </div>
         </div>
       </div>
     </div>
@@ -79,20 +109,23 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue'
+import { ref, nextTick, onMounted } from 'vue'
 import api from '../api'
 import KiaLogo from '../components/KiaLogo.vue'
 
 const messages = ref([])
+const conversations = ref([])
+const activeId = ref(null)
 const input = ref('')
 const loading = ref(false)
+const streaming = ref(false)
 const taskType = ref('simple')
+const health = ref(null)
 const messagesContainer = ref(null)
 const ta = ref(null)
 
-const taskTypes = ['simple', 'fast', 'planning', 'research', 'synthesis', 'code']
+const taskTypes = ['simple', 'fast', 'planning', 'research', 'code']
 
-// minimal, safe markdown-ish rendering (escape then apply a few patterns)
 const render = (text) => {
   const esc = String(text)
     .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
@@ -119,8 +152,52 @@ const pushUser = (c) => messages.value.push({ role: 'user', content: c })
 const pushAI = (c) => messages.value.push({ role: 'assistant', content: c })
 const errText = (e) => `Error: ${e.response?.data?.detail || e.message}`
 
+const loadConversations = async () => {
+  try { conversations.value = (await api.listConversations()).data || [] } catch { /* offline ok */ }
+}
+
+const openConversation = async (id) => {
+  if (streaming.value || loading.value) return
+  try {
+    const r = await api.getConversation(id)
+    activeId.value = id
+    messages.value = (r.data.messages || []).map(m => ({ role: m.role, content: m.content }))
+    scrollToBottom()
+  } catch (e) { pushAI(errText(e)) }
+}
+
+const deleteConv = async (id) => {
+  try {
+    await api.deleteConversation(id)
+    if (id === activeId.value) newChat()
+    await loadConversations()
+  } catch { /* ignore */ }
+}
+
+// Ensure a conversation exists (slash commands don't go through the stream endpoint,
+// which is what normally creates one).
+const ensureConversation = async () => {
+  if (!activeId.value) {
+    const r = await api.createConversation()
+    activeId.value = r.data.id
+  }
+  return activeId.value
+}
+
+// Persist a non-streamed turn (slash commands) to durable history. Best-effort.
+const persistTurn = async (userText, assistantText) => {
+  try {
+    const id = await ensureConversation()
+    await api.appendMessages(id, [
+      { role: 'user', content: userText },
+      { role: 'assistant', content: assistantText }
+    ])
+    await loadConversations()
+  } catch { /* history is best-effort */ }
+}
+
 const sendMessage = async () => {
-  if (!input.value.trim() || loading.value) return
+  if (!input.value.trim() || loading.value || streaming.value) return
   const text = input.value.trim()
   input.value = ''
   nextTick(autoGrow)
@@ -131,7 +208,9 @@ const sendMessage = async () => {
     pushUser('📚 Teaching KIA…'); loading.value = true; scrollToBottom()
     try {
       const r = await api.learn(body)
-      pushAI(`Learned ✓ — indexed ${r.data.chunks_indexed} chunk(s). Ask about it with **/brain**; it's queued for my next training.`)
+      const ans = `Learned ✓ — indexed ${r.data.chunks_indexed} chunk(s). Ask about it with **/brain**; it's queued for my next training.`
+      pushAI(ans)
+      persistTurn(text, ans)
     } catch (e) { pushAI(errText(e)) } finally { loading.value = false; scrollToBottom() }
     return
   }
@@ -141,7 +220,9 @@ const sendMessage = async () => {
     pushUser(task); loading.value = true; scrollToBottom()
     try {
       const r = await api.useConnectors(task)
-      pushAI(r.data.answer + `\n\n_(via ${r.data.tools_available} connector tool(s))_`)
+      const ans = r.data.answer + `\n\n_(via ${r.data.tools_available} connector tool(s))_`
+      pushAI(ans)
+      persistTurn(task, ans)
     } catch (e) { pushAI(errText(e)) } finally { loading.value = false; scrollToBottom() }
     return
   }
@@ -152,21 +233,69 @@ const sendMessage = async () => {
     try {
       const r = await api.ragQuery(q)
       pushAI(r.data.answer)
+      persistTurn(q, r.data.answer)
     } catch (e) { pushAI(errText(e)) } finally { loading.value = false; scrollToBottom() }
     return
   }
-  // normal chat
-  pushUser(text); loading.value = true; scrollToBottom()
+
+  // Normal chat — streamed + persisted to durable history.
+  pushUser(text)
+  const aiMsg = { role: 'assistant', content: '', streaming: true }
+  messages.value.push(aiMsg)
+  streaming.value = true
+  scrollToBottom()
   try {
-    const r = await api.generate(text, taskType.value)
-    pushAI(r.data.response)
-  } catch (e) { pushAI(errText(e)) } finally { loading.value = false; scrollToBottom() }
+    const result = await api.streamChat(text, {
+      conversationId: activeId.value,
+      taskType: taskType.value,
+      onToken: (t) => { aiMsg.content += t; scrollToBottom() }
+    })
+    aiMsg.streaming = false
+    const wasNew = !activeId.value
+    if (result.conversationId) activeId.value = result.conversationId
+    if (wasNew) await loadConversations()
+  } catch (e) {
+    aiMsg.streaming = false
+    if (!aiMsg.content) aiMsg.content = errText(e)
+  } finally {
+    streaming.value = false
+    scrollToBottom()
+  }
 }
 
-const newChat = () => { messages.value = []; input.value = ''; api.newSession() }
+const newChat = () => {
+  messages.value = []; input.value = ''; activeId.value = null; api.newSession()
+}
+
+onMounted(async () => {
+  loadConversations()
+  try { health.value = (await api.deepHealth()).data } catch { /* health is best-effort */ }
+})
 </script>
 
 <style scoped>
+.kia-chat-layout { display:flex; gap:1rem; align-items:flex-start; max-width:1100px; margin:0 auto; }
+.kia-chat-main { flex:1; min-width:0; }
+.kia-history { width:240px; flex-shrink:0; padding:.9rem; display:flex; flex-direction:column; max-height:74vh; }
+.kia-history-head { display:flex; align-items:center; justify-content:space-between; margin-bottom:.6rem; }
+.kia-history-list { overflow-y:auto; display:flex; flex-direction:column; gap:2px; }
+.kia-history-item {
+  display:flex; align-items:center; justify-content:space-between; gap:.4rem;
+  text-align:left; padding:.5rem .6rem; border-radius:10px; font-size:.86rem;
+  color:var(--text); background:transparent; border:none; cursor:pointer; width:100%;
+}
+.kia-history-item:hover { background:var(--fill); }
+.kia-history-item.active { background:var(--kia-blue); color:#fff; }
+.kia-history-title { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; flex:1; }
+.kia-history-del { opacity:0; font-size:.78rem; color:inherit; flex-shrink:0; }
+.kia-history-item:hover .kia-history-del { opacity:.6; }
+.kia-history-del:hover { opacity:1 !important; }
+.kia-banner {
+  display:flex; align-items:center; gap:.55rem; padding:.6rem .85rem; border-radius:12px;
+  font-size:.85rem; margin-bottom:.8rem;
+}
+.kia-banner.degraded { background:#fff4e0; color:#8a5a00; border:1px solid #f3d28a; }
+.kia-banner.critical { background:#fde8e8; color:#a01919; border:1px solid #f0b4b4; }
 .kia-hint { font-size:.82rem; color:var(--text-2); background:var(--fill); padding:.35rem .7rem; border-radius:980px; }
 .kia-bubble-user {
   background: var(--kia-blue); color:#fff;
@@ -184,10 +313,16 @@ const newChat = () => { messages.value = []; input.value = ''; api.newSession() 
   font-size:.82rem; margin:.5rem 0; white-space:pre-wrap;
 }
 .kia-bubble-user .kia-bubble-text :deep(code) { background: rgba(255,255,255,0.2); color:#fff; }
+.kia-caret { display:inline-block; margin-left:1px; animation: kia-caret 1s steps(1) infinite; color:var(--text-3); }
+@keyframes kia-caret { 50% { opacity:0; } }
 .kia-dot {
   display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--text-3);
   margin:0 2px; animation: kia-blink 1.2s infinite both;
 }
 .kia-dot:nth-child(2){ animation-delay:.2s } .kia-dot:nth-child(3){ animation-delay:.4s }
 @keyframes kia-blink { 0%,80%,100%{ opacity:.25; transform:translateY(0) } 40%{ opacity:1; transform:translateY(-3px) } }
+@media (max-width: 760px) {
+  .kia-chat-layout { flex-direction:column; }
+  .kia-history { width:100%; max-height:30vh; }
+}
 </style>

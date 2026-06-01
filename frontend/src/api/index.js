@@ -93,9 +93,69 @@ export default {
     })
   },
 
+  // Conversations (durable history)
+  listConversations(limit = 50) {
+    return api.get('/conversations', { params: { limit } })
+  },
+  createConversation(title = null) {
+    return api.post('/conversations', { title })
+  },
+  getConversation(id) {
+    return api.get(`/conversations/${id}`)
+  },
+  renameConversation(id, title) {
+    return api.patch(`/conversations/${id}`, { title })
+  },
+  deleteConversation(id) {
+    return api.delete(`/conversations/${id}`)
+  },
+  appendMessages(id, messages) {
+    return api.post(`/conversations/${id}/messages`, { messages })
+  },
+
+  // Streaming chat. onToken(text) is called per chunk; resolves with {conversationId, model}.
+  // Uses fetch + ReadableStream to read Server-Sent Events (axios can't stream in-browser).
+  async streamChat(message, { conversationId = null, taskType = 'simple', model = null, onToken, onMeta } = {}) {
+    const resp = await fetch('/api/v1/chat/stream', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message, conversation_id: conversationId, task_type: taskType, model })
+    })
+    if (!resp.ok || !resp.body) {
+      throw new Error(`stream failed: HTTP ${resp.status}`)
+    }
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let convId = conversationId
+    let usedModel = null
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n\n')
+      buffer = lines.pop() // keep incomplete trailing chunk
+      for (const block of lines) {
+        const line = block.trim()
+        if (!line.startsWith('data:')) continue
+        const data = line.slice(5).trim()
+        if (data === '[DONE]') continue
+        let evt
+        try { evt = JSON.parse(data) } catch { continue }
+        if (evt.type === 'meta') { convId = evt.conversation_id; onMeta && onMeta(evt) }
+        else if (evt.type === 'token') { onToken && onToken(evt.content) }
+        else if (evt.type === 'done') { convId = evt.conversation_id || convId; usedModel = evt.model }
+      }
+    }
+    return { conversationId: convId, model: usedModel }
+  },
+
   // System
   health() {
     return axios.get('/health')
+  },
+  deepHealth() {
+    return api.get('/health/deep')
   },
   status() {
     return api.get('/status')

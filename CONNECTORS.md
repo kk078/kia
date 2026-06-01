@@ -56,16 +56,46 @@ strong model so connector reliability approaches Claude's, while generation stay
    curl.exe -s -X POST "http://localhost:8000/api/v1/connectors/query?prompt=List%20open%20issues%20in%20my%20kia%20repo"
    ```
 
-## Adding any connector
+## Bundled servers
 
-Any MCP server works — just add it to `data/connectors.json`:
+`connectors.example.json` ships with eight servers ready to enable (delete any you
+don't use so KIA doesn't try to launch it):
+
+| Server | Package | What it adds | Secret needed |
+|--------|---------|--------------|---------------|
+| `filesystem` | `@modelcontextprotocol/server-filesystem` | Read/write files under `/app/data` | — |
+| `github` | `@modelcontextprotocol/server-github` | Repos, issues, PRs, code search | `GITHUB_PERSONAL_ACCESS_TOKEN` |
+| `web-search` | `@modelcontextprotocol/server-brave-search` | Web search (SERP) | `BRAVE_API_KEY` |
+| `fetch` | `mcp-server-fetch` (uvx) | Fetch & read any web page as markdown | — |
+| `postgres` | `@modelcontextprotocol/server-postgres` | Read-only SQL queries | connection string |
+| `memory` | `@modelcontextprotocol/server-memory` | Persistent knowledge-graph memory | — |
+| `notion` | `@notionhq/notion-mcp-server` | Notion pages/databases | `NOTION_TOKEN` |
+| `slack` | `@modelcontextprotocol/server-slack` | Channels, messages | `SLACK_BOT_TOKEN`, `SLACK_TEAM_ID` |
+
+Setup notes for the ones that need it:
+
+- **fetch** — Python server, launched with `uvx` (already in the image). Best paired
+  with `web-search`: search for a URL, then fetch and read the page. No key.
+- **postgres** — replace the connection string with your DB; use a **read-only** role.
+  For SQLite instead, swap to `@modelcontextprotocol/server-sqlite` pointed at
+  `/app/data/kia.db`.
+- **memory** — a knowledge graph the model can write entities/relations into; persists
+  to `MEMORY_FILE_PATH` (`/app/data/mcp_memory.json`) so it survives restarts. This is
+  KIA's *connector-side* scratch memory, separate from the Weaviate/FalkorDB stores.
+- **notion** — create an internal integration at notion.so/my-integrations, **share the
+  pages/databases** with it, then paste the `ntn_…` secret into `NOTION_TOKEN`.
+- **Google Drive** — not a one-line `npx`; it needs an OAuth flow. See `_note_gdrive`
+  in `connectors.example.json` for the build + credentials steps.
+
+## Adding any other connector
+
+Any MCP server works — just add it to `data/connectors.json` under `mcpServers`:
 ```json
-{ "mcpServers": { "notion": {
-    "command": "npx", "args": ["-y", "@modelcontextprotocol/server-notion"],
-    "env": {"NOTION_API_KEY": "secret_xxx"} } } }
+{ "mcpServers": { "my-server": {
+    "command": "npx", "args": ["-y", "@scope/server-name"],
+    "env": {"API_KEY": "secret_xxx"} } } }
 ```
-Browse servers at modelcontextprotocol.io / the MCP servers registry. Filesystem,
-GitHub, Brave search, and Slack are pre-listed in `connectors.example.json`.
+Browse servers at modelcontextprotocol.io / the MCP servers registry.
 
 > Note: `@modelcontextprotocol/server-github` is marked deprecated on npm but still
 > works. For long-term use, GitHub's official MCP server (github.com/github/github-mcp-server)

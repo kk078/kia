@@ -42,6 +42,24 @@ class CircuitBreaker:
             return False
         return (time.monotonic() - self._opened_at) < self.cooldown
 
+    @property
+    def state(self) -> str:
+        """Human-readable state for health reporting: closed | open | half-open."""
+        if self._opened_at is None:
+            return "closed"
+        return "open" if self.is_open else "half-open"
+
+    def record_success(self) -> None:
+        """Mark a successful call; closes the breaker. For streaming/manual paths."""
+        self._failures = 0
+        self._opened_at = None
+
+    def record_failure(self) -> None:
+        """Mark a failed call; opens the breaker once the threshold is hit."""
+        self._failures += 1
+        if self._failures >= self.threshold:
+            self._opened_at = time.monotonic()
+
     async def call(self, fn: Callable[[], Awaitable[T]]) -> T:
         """Run ``fn`` through the breaker, fast-failing if open."""
         if self.is_open:
@@ -49,11 +67,7 @@ class CircuitBreaker:
         try:
             result = await fn()
         except Exception:
-            self._failures += 1
-            if self._failures >= self.threshold:
-                self._opened_at = time.monotonic()
+            self.record_failure()
             raise
-        # Success closes the breaker.
-        self._failures = 0
-        self._opened_at = None
+        self.record_success()
         return result
