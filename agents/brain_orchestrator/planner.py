@@ -4,6 +4,7 @@ from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
 
+from brain_core.config import settings
 from brain_core.llm import LLMRouter
 from brain_core.metrics import Timer, track_agent_invocation
 from brain_core.tracing import traced
@@ -21,6 +22,7 @@ class PlanState(TypedDict):
     results: list[dict[str, Any]]
     final_response: str
     iteration: int
+    agent: Any  # optional ConnectorAgent for agentic execution (real tool calls)
 
 
 class Orchestrator:
@@ -93,7 +95,17 @@ Current task: {state["current_task"]}
 
 Provide the result in a clear format."""
 
-        response = await self.llm.generate(prompt, task_type="research")
+        # Agentic execution: if connectors are wired, let the subtask call REAL tools
+        # (GitHub, web, Slack, ...) via the connector agent. Falls back to plain
+        # reasoning when no agent is available or the tool loop errors.
+        agent = state.get("agent")
+        if agent is not None:
+            try:
+                response = await agent.run(prompt)
+            except Exception:
+                response = await self.llm.generate(prompt, task_type="research")
+        else:
+            response = await self.llm.generate(prompt, task_type="research")
 
         results = state["results"] + [
             {
@@ -149,6 +161,20 @@ Provide the result in a clear format."""
         success = True
         try:
             with Timer("orchestrator_execution_time", agent_type="orchestrator"):
+                # Optionally bring up connectors so subtasks can take real actions.
+                agent = None
+                manager = None
+                if settings.connectors_enabled:
+                    from brain_connectors.agent import ConnectorAgent
+                    from brain_connectors.client import MCPConnectorManager
+
+                    manager = MCPConnectorManager(settings.connectors_config)
+                    try:
+                        await manager.connect()
+                        agent = ConnectorAgent(manager)
+                    except Exception:
+                        agent = None
+
                 initial_state: PlanState = {
                     "goal": goal,
                     "context": context,
@@ -157,9 +183,14 @@ Provide the result in a clear format."""
                     "results": [],
                     "final_response": "",
                     "iteration": 0,
+                    "agent": agent,
                 }
 
-                final_state = await self.graph.ainvoke(initial_state)
+                try:
+                    final_state = await self.graph.ainvoke(initial_state)
+                finally:
+                    if manager is not None:
+                        await manager.close()
 
                 # Synthesize final response
                 synthesis_prompt = (
