@@ -77,16 +77,31 @@
         </div>
 
         <!-- Composer -->
-        <div style="border-top:1px solid var(--hairline);padding:.9rem 1rem;background:var(--surface-2)">
+        <div style="border-top:1px solid var(--hairline);padding:.9rem 1rem;background:var(--surface-2);position:relative">
+          <!-- Slash-command menu -->
+          <div v-if="showMenu" class="kia-cmd-menu">
+            <button
+              v-for="(c, i) in filteredCommands" :key="c.cmd"
+              class="kia-cmd-item" :class="{ active: i === menuIndex }"
+              @mousedown.prevent="selectAt(i)"
+              @mouseenter="menuIndex = i">
+              <code class="kia-cmd-name">{{ c.cmd }}</code>
+              <span class="kia-cmd-desc">{{ c.desc }}</span>
+            </button>
+          </div>
           <div class="flex items-end" style="gap:.6rem">
             <textarea
               v-model="input"
-              @keydown.enter.exact.prevent="sendMessage"
+              @keydown.enter.exact.prevent="onEnter"
+              @keydown.down="onArrow($event, 1)"
+              @keydown.up="onArrow($event, -1)"
+              @keydown.tab="onTab($event)"
+              @keydown.esc="menuOpen = false"
               :disabled="loading || streaming"
               rows="1"
               ref="ta"
-              @input="autoGrow"
-              placeholder="Message KIA…"
+              @input="onInput"
+              placeholder="Message KIA…  (type / for commands)"
               class="kia-textarea"
               style="max-height:140px;background:var(--surface)"
             ></textarea>
@@ -109,7 +124,7 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, onMounted } from 'vue'
 import api from '../api'
 import KiaLogo from '../components/KiaLogo.vue'
 
@@ -125,6 +140,45 @@ const messagesContainer = ref(null)
 const ta = ref(null)
 
 const taskTypes = ['simple', 'fast', 'planning', 'research', 'code']
+
+// Slash-command autocomplete
+const commands = [
+  { cmd: '/learn', desc: 'Teach KIA — add text to its knowledge base' },
+  { cmd: '/brain', desc: 'Ask KIA from its knowledge base (retrieval)' },
+  { cmd: '/use', desc: 'Call connector tools (GitHub, web, Slack…)' }
+]
+const menuOpen = ref(false)
+const menuIndex = ref(0)
+
+const filteredCommands = computed(() => {
+  const v = input.value
+  if (!v.startsWith('/') || v.includes(' ')) return []
+  const q = v.slice(1).toLowerCase()
+  return commands.filter(c => c.cmd.slice(1).toLowerCase().startsWith(q))
+})
+const showMenu = computed(() => menuOpen.value && filteredCommands.value.length > 0)
+
+const onInput = () => {
+  autoGrow()
+  const v = input.value
+  menuOpen.value = v.startsWith('/') && !v.includes(' ')
+  menuIndex.value = 0
+}
+const menuMove = (d) => {
+  const n = filteredCommands.value.length
+  if (n) menuIndex.value = (menuIndex.value + d + n) % n
+}
+const onArrow = (e, d) => { if (!showMenu.value) return; e.preventDefault(); menuMove(d) }
+const acceptCommand = () => {
+  const c = filteredCommands.value[menuIndex.value]
+  if (!c) return
+  input.value = c.cmd + ' '
+  menuOpen.value = false
+  nextTick(() => { if (ta.value) ta.value.focus(); autoGrow() })
+}
+const selectAt = (i) => { menuIndex.value = i; acceptCommand() }
+const onEnter = () => { if (showMenu.value) acceptCommand(); else sendMessage() }
+const onTab = (e) => { if (showMenu.value) { e.preventDefault(); acceptCommand() } }
 
 const render = (text) => {
   const esc = String(text)
@@ -297,6 +351,18 @@ onMounted(async () => {
 .kia-banner.degraded { background:#fff4e0; color:#8a5a00; border:1px solid #f3d28a; }
 .kia-banner.critical { background:#fde8e8; color:#a01919; border:1px solid #f0b4b4; }
 .kia-hint { font-size:.82rem; color:var(--text-2); background:var(--fill); padding:.35rem .7rem; border-radius:980px; }
+.kia-cmd-menu {
+  position:absolute; left:1rem; right:1rem; bottom:100%; margin-bottom:.5rem;
+  background:var(--surface); border:1px solid var(--hairline); border-radius:14px;
+  box-shadow:0 8px 30px rgba(0,0,0,.12); padding:.35rem; z-index:20;
+}
+.kia-cmd-item {
+  display:flex; align-items:baseline; gap:.6rem; width:100%; text-align:left;
+  padding:.5rem .7rem; border:none; background:transparent; border-radius:10px; cursor:pointer;
+}
+.kia-cmd-item.active { background:var(--fill); }
+.kia-cmd-name { color:var(--kia-blue); font-weight:600; font-size:.9rem; font-family:"SF Mono",ui-monospace,Menlo,monospace; }
+.kia-cmd-desc { color:var(--text-2); font-size:.82rem; }
 .kia-bubble-user {
   background: var(--kia-blue); color:#fff;
   padding:.7rem 1rem; border-radius:20px 20px 6px 20px; max-width:78%;
