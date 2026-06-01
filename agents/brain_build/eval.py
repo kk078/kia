@@ -215,7 +215,7 @@ async def run_scenario(sc: Scenario, runs_dir: str) -> dict[str, Any]:
                     error = str(ev.get("content", ""))
 
         await asyncio.wait_for(_go(), timeout=PER_SCENARIO_TIMEOUT)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         error = f"timed out after {PER_SCENARIO_TIMEOUT:.0f}s"
     finally:
         store.delete(sid)
