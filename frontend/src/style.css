@@ -158,3 +158,13 @@ code {
 /* fade-in for messages/cards */
 @keyframes kia-rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 .kia-rise { animation: kia-rise .28s ease both; }
+
+/* Cloud-failover (degraded mode) banner — shown app-wide via App.vue */
+.kia-degraded-bar {
+  display: flex; align-items: center; gap: .6rem;
+  max-width: 1100px; margin: .75rem auto 0; padding: .65rem 1rem;
+  background: #fff4e0; color: #8a5a00; border: 1px solid #f3d28a;
+  border-radius: 12px; font-size: .85rem; line-height: 1.45;
+}
+.kia-degraded-bar i { font-size: .95rem; flex-shrink: 0; }
+.kia-degraded-bar code { background: rgba(138,90,0,.12); color: #6b4500; }

@@ -555,10 +555,13 @@ async def chat_stream(request: Request, body: StreamChatRequest) -> StreamingRes
     persist both the user message and the full reply to durable history."""
     from brain_core.fallback import resilient_stream
     from brain_core.llm import LLMRouter
-    from brain_memory.conversations import ConversationStore
+    from brain_memory.conversations import make_conversation_store
 
     user_id = _user_from(request)
-    store = ConversationStore()
+    # Backend-aware store: SQLite in native mode, Redis otherwise. Using the
+    # hardcoded Redis ConversationStore here silently dropped history in native
+    # mode, so multi-turn context was lost between streamed turns.
+    store = make_conversation_store()
     router = LLMRouter()
 
     # Ensure a conversation exists, then persist the user's message up-front so it

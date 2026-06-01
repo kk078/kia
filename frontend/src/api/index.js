@@ -1,4 +1,5 @@
 import axios from 'axios'
+import { setDegraded } from './state'
 
 const api = axios.create({
   baseURL: '/api/v1',
@@ -24,10 +25,12 @@ export default {
   },
 
   // LLM
-  generate(prompt, taskType = 'simple', model = null) {
-    return api.post('/llm/generate', null, {
+  async generate(prompt, taskType = 'simple', model = null) {
+    const r = await api.post('/llm/generate', null, {
       params: { prompt, task_type: taskType, model, session_id: sessionId }
     })
+    setDegraded(!!(r.data && r.data.degraded))
+    return r
   },
 
   // Memory - Episodes
@@ -70,10 +73,13 @@ export default {
   retrieveContext(query, topK = 5) {
     return api.get('/knowledge/retrieve', { params: { query, top_k: topK } })
   },
-  ragQuery(question, model = null) {
-    return api.post('/knowledge/rag', null, {
+  async ragQuery(question, model = null) {
+    const r = await api.post('/knowledge/rag', null, {
       params: { question, model, session_id: sessionId }
     })
+    // Backend sets `degraded` when retrieval is down; Worker sets it on cloud failover.
+    setDegraded(!!(r.data && r.data.degraded))
+    return r
   },
 
   learn(text, source = null) {
@@ -143,6 +149,7 @@ export default {
     let buffer = ''
     let convId = conversationId
     let usedModel = null
+    let degradedSeen = false
     while (true) {
       const { value, done } = await reader.read()
       if (done) break
@@ -156,12 +163,14 @@ export default {
         if (data === '[DONE]') continue
         let evt
         try { evt = JSON.parse(data) } catch { continue }
-        if (evt.type === 'meta') { convId = evt.conversation_id; onMeta && onMeta(evt) }
+        if (evt.type === 'meta') { convId = evt.conversation_id; if (evt.degraded) degradedSeen = true; onMeta && onMeta(evt) }
         else if (evt.type === 'token') { onToken && onToken(evt.content) }
-        else if (evt.type === 'done') { convId = evt.conversation_id || convId; usedModel = evt.model }
+        else if (evt.type === 'done') { convId = evt.conversation_id || convId; usedModel = evt.model; if (evt.degraded) degradedSeen = true }
       }
     }
-    return { conversationId: convId, model: usedModel }
+    // A clean local stream clears the banner; a cloud-failover stream raises it.
+    setDegraded(degradedSeen)
+    return { conversationId: convId, model: usedModel, degraded: degradedSeen }
   },
 
   // System
