@@ -210,6 +210,9 @@ export default {
   resumeBuild(sessionId, approve, onEvent) {
     return this._streamBuild('/api/v1/build/resume', { session_id: sessionId, approve }, onEvent)
   },
+  continueBuild(sessionId, onEvent) {
+    return this._streamBuild('/api/v1/build/continue', { session_id: sessionId }, onEvent)
+  },
   cancelBuild(sessionId) {
     return api.post('/build/cancel', { session_id: sessionId, approve: false })
   },

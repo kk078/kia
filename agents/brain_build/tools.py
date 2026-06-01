@@ -8,6 +8,7 @@ rating on every action lets the loop auto-run safe steps and gate risky ones.
 
 from __future__ import annotations
 
+import fnmatch
 import os
 import re
 from typing import Any
@@ -127,6 +128,31 @@ class BuildTools:
         if len(entries) > _MAX_LIST:
             listing += f"\n…[{len(entries) - _MAX_LIST} more]"
         return listing or "(empty)"
+
+    def search(self, query: str, glob: str = "") -> str:
+        """Grep for a regex/text across files under the workdir; returns file:line matches."""
+        try:
+            pat = re.compile(query)
+        except re.error as e:
+            return f"ERROR: bad regex: {e}"
+        skip = {".git", "node_modules", "__pycache__", ".venv", "dist", ".mypy_cache"}
+        hits: list[str] = []
+        for dirpath, dirnames, filenames in os.walk(self.root):
+            dirnames[:] = [d for d in dirnames if d not in skip]
+            for fn in filenames:
+                if glob and not fnmatch.fnmatch(fn, glob):
+                    continue
+                full = os.path.join(dirpath, fn)
+                try:
+                    with open(full, encoding="utf-8", errors="replace") as f:
+                        for i, line in enumerate(f, 1):
+                            if pat.search(line):
+                                hits.append(f"{self._rel(full)}:{i}: {line.strip()[:200]}")
+                                if len(hits) >= 200:
+                                    return "\n".join(hits) + "\n…[truncated]"
+                except OSError:
+                    continue
+        return "\n".join(hits) if hits else "(no matches)"
 
     # -- shell + web --------------------------------------------------------
     async def run_command(self, command: str, timeout: int | None = None) -> dict[str, Any]:

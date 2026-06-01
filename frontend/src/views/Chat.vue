@@ -383,6 +383,25 @@ const sendMessage = async () => {
   // /agent <goal>  — autonomous build loop (think → act → observe), streamed live
   if (text.toLowerCase().startsWith('/agent ')) {
     const goal = text.slice(7).trim()
+    // /agent continue — resume the most recent build that hit its step budget
+    if (goal.toLowerCase() === 'continue') {
+      const prev = [...messages.value].reverse().find(m => m.build && m.build.sessionId)
+      if (!prev) { pushUser(text); pushAI('No previous build to continue.'); scrollToBottom(); return }
+      pushUser('continue build')
+      prev.build.state = 'running'
+      streaming.value = true
+      scrollToBottom()
+      try {
+        await api.continueBuild(prev.build.sessionId, (evt) => handleBuildEvent(prev.build, evt))
+      } catch (e) {
+        prev.build.events.push({ type: 'error', content: errText(e) })
+      } finally {
+        if (prev.build.state === 'running') prev.build.state = 'done'
+        streaming.value = false
+        scrollToBottom()
+      }
+      return
+    }
     pushUser(goal)
     const msg = { role: 'assistant', build: { goal, root: null, sessionId: null, events: [], state: 'running' } }
     messages.value.push(msg)

@@ -498,6 +498,31 @@ async def build_resume(body: BuildDecisionRequest) -> StreamingResponse:
     )
 
 
+@app.post("/api/v1/build/continue")
+async def build_continue(body: BuildDecisionRequest) -> StreamingResponse:
+    """Resume a build that hit its step budget, extending it (SSE)."""
+    if not settings.exec_enabled:
+        raise HTTPException(status_code=503, detail="Execution disabled (set EXEC_ENABLED=true)")
+    from brain_build.agent import BuildAgent
+
+    agent = BuildAgent()
+    sid = body.session_id
+
+    async def gen() -> AsyncGenerator[str, None]:
+        try:
+            async for ev in agent.continue_(sid):
+                yield _sse(ev)
+        except Exception as e:  # noqa: BLE001
+            yield _sse({"type": "error", "content": f"{type(e).__name__}: {e}"})
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 @app.post("/api/v1/build/cancel")
 async def build_cancel(body: BuildDecisionRequest) -> dict[str, str]:
     """Drop a build session (Stop button)."""

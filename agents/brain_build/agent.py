@@ -9,6 +9,8 @@ Low/medium-risk steps (reads, writes, safe commands) run automatically.
 from __future__ import annotations
 
 import json
+import os
+import time
 from collections.abc import AsyncGenerator
 from typing import Any
 
@@ -17,34 +19,44 @@ from brain_build.tools import BuildTools, classify_command
 from brain_core.config import settings
 from brain_core.llm import LLMRouter
 
-MAX_STEPS = 30
+MAX_STEPS = 50  # per run; /build/continue extends the budget for very large tasks
 _OBS_CAP = 6000  # max chars of an observation fed back into the model / UI
 
 _SYSTEM = """You are KIA's autonomous build agent working inside the directory:
   {root}
 
-You accomplish the user's GOAL by taking ONE action at a time and observing its result.
+You accomplish the user's GOAL by reasoning step by step and taking ONE tool action at a
+time, observing its result, then deciding the next action — like a careful senior engineer.
 
 Respond with EXACTLY ONE JSON object and NOTHING else — no prose, no code fences:
-  {{"thought": "<brief reasoning>", "tool": "<name>", "args": {{...}}}}
+  {{"thought": "<reasoning + which TODO item you're on>", "tool": "<name>", "args": {{...}}}}
 
-Available tools:
-  - list_dir   {{"path": "."}}                         list a directory
-  - read_file  {{"path": "rel/or/abs/path"}}           read a file's text
-  - write_file {{"path": "...", "content": "..."}}     create/overwrite a file (exact content)
+Tools:
+  - list_dir   {{"path": "."}}                                list a directory
+  - read_file  {{"path": "..."}}                              read a file's text
+  - search     {{"query": "regex", "glob": "*.py"}}           grep text across files
+  - write_file {{"path": "...", "content": "..."}}            create/overwrite (exact content)
   - edit_file  {{"path": "...", "old": "...", "new": "..."}}  replace a unique exact substring
-  - run_command{{"command": "..."}}   run a shell command (CWD = the working directory)
-  - fetch_url  {{"url": "https://..."}}                fetch a web page for reference
-  - finish     {{"summary": "what you did + how you verified it"}}  end the build
+  - run_command{{"command": "..."}}                           shell, CWD = the working directory
+  - fetch_url  {{"url": "https://..."}}                       fetch a web page for reference
+  - finish     {{"summary": "what you built + the evidence it works"}}  end the build
 
-Rules:
-- Paths are relative to the working directory; you cannot touch anything outside it.
-- Make small, verifiable steps. After writing code, RUN it (or the tests/build) and read
-  the output before deciding the next step. Fix failures and re-run until it works.
-- When the goal is achieved AND you've verified it from real command output, call finish.
-- Destructive or system-level commands (delete, install, registry/service, force-push)
-  will be paused for human approval — prefer safe, idempotent commands.
-- Keep file writes complete and runnable. Don't invent file contents you haven't read."""
+How to work well on COMPLEX tasks:
+1. PLAN FIRST. In your first thought, write a numbered TODO covering the whole task. Then
+   begin with an exploration action (list_dir / read_file / search). Restate the TODO in each
+   thought and mark items [done] as you complete them.
+2. EXPLORE before you edit. Understand what already exists; never invent the contents of a
+   file you have not read.
+3. SMALL STEPS. Change one thing, then verify it. Prefer edit_file over rewriting whole files.
+4. VERIFY WITH REALITY. After writing code, actually RUN it (or its tests/build) with
+   run_command and read the output. Exit code AND output are the source of truth.
+5. RECOVER. If a command fails, read the error, state a hypothesis in your thought, fix it,
+   and re-run. Never repeat the same failing action unchanged.
+6. REFLECT BEFORE FINISH. Only call finish after a run_command has demonstrated the goal is
+   met. In the summary, cite the concrete evidence (the command and its key output).
+
+Safety: destructive/system commands (delete, install, registry/service, force-push) pause for
+human approval — prefer safe, idempotent commands. Paths are confined to the working directory."""
 
 
 def _resolve_model() -> tuple[str, dict[str, Any]]:
@@ -109,6 +121,8 @@ def _action_preview(tool: str, args: dict[str, Any]) -> str:
         return str(args.get("command", ""))
     if tool in ("read_file", "list_dir"):
         return str(args.get("path", "."))
+    if tool == "search":
+        return str(args.get("query", "")) + (f"  in {args['glob']}" if args.get("glob") else "")
     if tool == "write_file":
         return f"{args.get('path', '')} ({len(str(args.get('content', '')))} bytes)"
     if tool == "edit_file":
@@ -116,6 +130,33 @@ def _action_preview(tool: str, args: dict[str, Any]) -> str:
     if tool == "fetch_url":
         return str(args.get("url", ""))
     return json.dumps(args)[:200]
+
+
+def _trace_path() -> str:
+    """Where to append successful-build transcripts (next to the training capture file)."""
+    base = settings.training_capture_path or ""
+    d = os.path.dirname(base) if base else ""
+    return os.path.join(d, "kia_build_traces.jsonl") if d else "kia_build_traces.jsonl"
+
+
+def _capture_trace(session: dict[str, Any], summary: str) -> None:
+    """Append a successful build's full transcript to the trace dataset (best-effort).
+
+    This is KIA's own-wins dataset for later fine-tuning the local model on agentic builds.
+    """
+    try:
+        rec = {
+            "ts": time.time(),
+            "goal": session.get("goal", ""),
+            "root": session.get("root", ""),
+            "steps": session.get("step", 0),
+            "summary": summary,
+            "messages": session.get("messages", []),
+        }
+        with open(_trace_path(), "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: BLE001 - capture is best-effort
+        pass
 
 
 class BuildAgent:
@@ -134,6 +175,8 @@ class BuildAgent:
                 return tools.read_file(str(args["path"])), True
             if tool == "list_dir":
                 return tools.list_dir(str(args.get("path", "."))), True
+            if tool == "search":
+                return tools.search(str(args["query"]), str(args.get("glob", ""))), True
             if tool == "write_file":
                 return tools.write_file(str(args["path"]), str(args.get("content", ""))), True
             if tool == "edit_file":
@@ -166,11 +209,15 @@ class BuildAgent:
             yield {"type": "error", "content": "session not found"}
             return
         tools = BuildTools(s["root"])
+        budget = int(s.get("max_steps") or MAX_STEPS)
 
         while True:
-            if s["step"] >= MAX_STEPS:
-                yield {"type": "limit", "content": f"reached the {MAX_STEPS}-step limit"}
-                store.save(sid, status="done")
+            if s["step"] >= budget:
+                store.save(sid, status="limit")
+                yield {
+                    "type": "limit", "session_id": sid,
+                    "content": f"hit the {budget}-step budget — /agent continue to keep going",
+                }
                 return
             s["step"] += 1
             step_no = s["step"]
@@ -204,6 +251,7 @@ class BuildAgent:
 
             if tool == "finish":
                 summary = str(args.get("summary", "Build complete.")).strip()
+                _capture_trace(s, summary)
                 yield {"type": "finish", "step": step_no, "summary": summary}
                 store.save(sid, status="done")
                 return
@@ -263,6 +311,18 @@ class BuildAgent:
             )
             yield {"type": "observation", "step": s["step"], "ok": False,
                    "content": "(rejected by user)", "approved": False}
+        async for ev in self.run(sid):
+            yield ev
+
+    async def continue_(self, sid: str) -> AsyncGenerator[dict[str, Any], None]:
+        """Extend the step budget and keep building (after hitting the limit)."""
+        s = store.get(sid)
+        if s is None:
+            yield {"type": "error", "content": "build session not found (it may have expired)"}
+            return
+        s["max_steps"] = int(s.get("step", 0)) + MAX_STEPS
+        store.save(sid, status="running")
+        self._record(sid, "user", "Continue the build from where you left off. Re-check your TODO.")
         async for ev in self.run(sid):
             yield ev
 
