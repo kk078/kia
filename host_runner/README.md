@@ -49,6 +49,36 @@ Nothing runs until you click Run. KIA never invents-and-executes in one step.
 3. In KIA chat, type `/build <task>` (e.g. `/build install slack`). KIA proposes commands;
    review and approve.
 
+## Always-on (run at logon, no terminal window)
+
+Instead of keeping a terminal open, register the runner as a Windows scheduled task.
+Open an **elevated** PowerShell (Run as Administrator) and run:
+
+```powershell
+cd C:\dev\host_runner
+.\install_task.ps1 -Token "the-same-secret-as-HOST_RUNNER_TOKEN-in-.env"
+```
+
+This registers "KIA Host Runner" to start at logon, run hidden via `pythonw` (no
+console), restart on failure, and run indefinitely. The token is saved to
+`host_runner\.runner_token` (gitignored) so the task needs no environment setup.
+If you omit `-Token`, it reuses an existing `.runner_token` or generates one and
+prints it — put that value in `.env` as `HOST_RUNNER_TOKEN` and recreate the API
+container (`docker compose -f docker-compose.prod.yml up -d python-api`).
+
+Verify, then remove when you want:
+
+```powershell
+curl.exe http://localhost:8000/api/v1/exec/status     # "runner":{"ok":true,...}
+.\uninstall_task.ps1                                   # stop + remove (elevated)
+```
+
+By default the task runs at your **normal (non-admin)** level, so installs needing
+admin will fail — pass `-Elevated` to `install_task.ps1` to run with highest
+privileges (more convenient, more risk; your call).
+
+Removing the task (or deleting `.runner_token`) is how you revoke KIA's host access.
+
 ## Security notes (read these)
 
 - The runner binds `0.0.0.0` so Docker can reach it, which means it's reachable from your

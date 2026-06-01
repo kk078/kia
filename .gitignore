@@ -92,3 +92,6 @@ data/
 
 # KIA connector secrets
 data/connectors.json
+
+# KIA host runner secret (never commit)
+host_runner/.runner_token

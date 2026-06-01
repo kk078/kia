@@ -43,7 +43,25 @@ from typing import Any
 
 PORT = int(os.environ.get("RUNNER_PORT", "8765"))
 HOST = os.environ.get("RUNNER_HOST", "0.0.0.0")
-TOKEN = os.environ.get("RUNNER_TOKEN", "")
+
+
+def _load_token() -> str:
+    """Token from RUNNER_TOKEN env, else a gitignored .runner_token file beside this script.
+
+    The file fallback lets the background scheduled task run without env plumbing.
+    """
+    env_token = os.environ.get("RUNNER_TOKEN", "").strip()
+    if env_token:
+        return env_token
+    token_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".runner_token")
+    try:
+        with open(token_file, encoding="utf-8") as f:
+            return f.read().strip()
+    except OSError:
+        return ""
+
+
+TOKEN = _load_token()
 MAX_TIMEOUT = 900  # seconds, hard cap per command
 IS_WINDOWS = platform.system() == "Windows"
 
@@ -153,7 +171,10 @@ class Handler(BaseHTTPRequestHandler):
 def main() -> None:
     """Start the runner with a loud, honest banner."""
     if not TOKEN:
-        print("!! RUNNER_TOKEN is not set. Set it before starting (see the file header).")
+        print(
+            "!! No token. Set RUNNER_TOKEN env var, or create host_runner/.runner_token "
+            "(install_task.ps1 does this for you)."
+        )
         sys.exit(1)
     print("=" * 70)
     print(" KIA Host Command Runner")
