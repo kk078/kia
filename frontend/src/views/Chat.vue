@@ -58,7 +58,36 @@
             <div v-if="msg.role !== 'user'" class="shrink-0" style="margin-right:.6rem;margin-top:2px">
               <KiaLogo :size="26" :wordmark="false" />
             </div>
-            <div :class="msg.role === 'user' ? 'kia-bubble-user' : 'kia-bubble-ai'">
+            <!-- Command plan / approval card -->
+            <div v-if="msg.plan" class="kia-plan">
+              <div class="kia-plan-head">
+                <i class="fas fa-terminal"></i>
+                <span>Proposed {{ msg.plan.commands.length }} command(s) for: <strong>{{ msg.plan.task }}</strong></span>
+              </div>
+              <div v-if="msg.plan.commands.length === 0" class="kia-plan-empty">
+                KIA couldn't form a safe command plan for that. Try rephrasing, or it may be out of scope.
+              </div>
+              <div v-for="(c, ci) in msg.plan.commands" :key="ci" class="kia-cmd-row">
+                <div class="kia-cmd-top">
+                  <span class="kia-danger" :class="c.danger">{{ c.danger }}</span>
+                  <code class="kia-cmd-code">{{ c.command }}</code>
+                </div>
+                <div v-if="c.explanation" class="kia-cmd-why">{{ c.explanation }}</div>
+                <div v-if="c.status === 'running'" class="kia-cmd-out">running…</div>
+                <pre v-else-if="c.output" class="kia-cmd-out" :class="{ bad: c.status === 'error' }">{{ c.output }}</pre>
+              </div>
+              <div v-if="msg.plan.state === 'review' && msg.plan.commands.length" class="kia-plan-actions">
+                <button class="kia-btn" style="padding:.45rem .9rem;border-radius:10px" @click="runPlan(msg)">
+                  <i class="fas fa-play"></i> Run {{ msg.plan.commands.length }} command(s)
+                </button>
+                <button class="kia-btn-soft" style="padding:.45rem .9rem" @click="msg.plan.state = 'cancelled'">Cancel</button>
+              </div>
+              <div v-else-if="msg.plan.state === 'running'" class="kia-plan-status">Running on host…</div>
+              <div v-else-if="msg.plan.state === 'done'" class="kia-plan-status ok">Finished — review the output above.</div>
+              <div v-else-if="msg.plan.state === 'cancelled'" class="kia-plan-status">Cancelled — nothing was run.</div>
+            </div>
+            <!-- Normal bubble -->
+            <div v-else :class="msg.role === 'user' ? 'kia-bubble-user' : 'kia-bubble-ai'">
               <div class="kia-bubble-text" v-html="render(msg.content)"></div>
               <span v-if="msg.streaming && !msg.content" class="kia-dot"></span>
               <span v-if="msg.streaming && !msg.content" class="kia-dot"></span>
@@ -145,7 +174,8 @@ const taskTypes = ['simple', 'fast', 'planning', 'research', 'code']
 const commands = [
   { cmd: '/learn', desc: 'Teach KIA — add text to its knowledge base' },
   { cmd: '/brain', desc: 'Ask KIA from its knowledge base (retrieval)' },
-  { cmd: '/use', desc: 'Call connector tools (GitHub, web, Slack…)' }
+  { cmd: '/use', desc: 'Call connector tools (GitHub, web, Slack…)' },
+  { cmd: '/build', desc: 'Plan & run commands on this computer (you approve each)' }
 ]
 const menuOpen = ref(false)
 const menuIndex = ref(0)
@@ -291,6 +321,30 @@ const sendMessage = async () => {
     } catch (e) { pushAI(errText(e)) } finally { loading.value = false; scrollToBottom() }
     return
   }
+  // /build <task>  — propose host commands you approve before they run
+  if (text.toLowerCase().startsWith('/build ')) {
+    const task = text.slice(7).trim()
+    pushUser(task); loading.value = true; scrollToBottom()
+    try {
+      const r = await api.execPlan(task)
+      messages.value.push({
+        role: 'assistant',
+        plan: {
+          id: r.data.plan_id,
+          task,
+          os: r.data.os,
+          commands: (r.data.commands || []).map(c => ({ ...c, status: 'pending', output: '' })),
+          state: 'review'
+        }
+      })
+    } catch (e) {
+      const extra = e.response?.status === 503
+        ? ' — set EXEC_ENABLED=true in .env and start host_runner/runner.py on this machine.'
+        : ''
+      pushAI(errText(e) + extra)
+    } finally { loading.value = false; scrollToBottom() }
+    return
+  }
 
   // Normal chat — streamed + persisted to durable history.
   pushUser(text)
@@ -315,6 +369,27 @@ const sendMessage = async () => {
     streaming.value = false
     scrollToBottom()
   }
+}
+
+// Execute an approved command plan, command by command, on the host.
+const runPlan = async (msg) => {
+  const plan = msg.plan
+  plan.state = 'running'
+  for (let i = 0; i < plan.commands.length; i++) {
+    const c = plan.commands[i]
+    c.status = 'running'; scrollToBottom()
+    try {
+      const d = (await api.execRun(plan.id, i)).data
+      c.status = d.ok ? 'done' : 'error'
+      c.output = `exit ${d.exit_code}` + (d.stdout ? `\n${d.stdout}` : '') + (d.stderr ? `\n${d.stderr}` : '')
+    } catch (e) {
+      c.status = 'error'; c.output = errText(e)
+    }
+    scrollToBottom()
+  }
+  plan.state = 'done'; scrollToBottom()
+  persistTurn('/build ' + plan.task,
+    `Ran ${plan.commands.length} command(s) on the host for "${plan.task}".`)
 }
 
 const newChat = () => {
@@ -363,6 +438,35 @@ onMounted(async () => {
 .kia-cmd-item.active { background:var(--fill); }
 .kia-cmd-name { color:var(--kia-blue); font-weight:600; font-size:.9rem; font-family:"SF Mono",ui-monospace,Menlo,monospace; }
 .kia-cmd-desc { color:var(--text-2); font-size:.82rem; }
+.kia-plan {
+  background:var(--surface); border:1px solid var(--hairline); border-radius:16px;
+  padding:1rem; max-width:92%; box-shadow:var(--shadow-sm); font-size:.9rem;
+}
+.kia-plan-head { display:flex; align-items:center; gap:.5rem; color:var(--text); font-weight:600; margin-bottom:.7rem; }
+.kia-plan-head i { color:var(--kia-blue); }
+.kia-plan-empty { color:var(--text-2); font-size:.85rem; }
+.kia-cmd-row { border-top:1px solid var(--hairline); padding:.6rem 0; }
+.kia-cmd-row:first-of-type { border-top:none; padding-top:0; }
+.kia-cmd-top { display:flex; align-items:flex-start; gap:.5rem; }
+.kia-cmd-code {
+  font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:.82rem; color:var(--text);
+  background:var(--bg); border:1px solid var(--hairline); border-radius:8px; padding:.3rem .5rem;
+  white-space:pre-wrap; word-break:break-all; flex:1;
+}
+.kia-cmd-why { color:var(--text-2); font-size:.8rem; margin:.35rem 0 0 .2rem; }
+.kia-cmd-out {
+  margin-top:.4rem; background:var(--bg); border:1px solid var(--hairline); border-radius:8px;
+  padding:.5rem .6rem; font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:.78rem;
+  white-space:pre-wrap; max-height:220px; overflow:auto; color:var(--text-2);
+}
+.kia-cmd-out.bad { border-color:#f0b4b4; background:#fff5f5; color:#a01919; }
+.kia-danger { font-size:.68rem; font-weight:700; text-transform:uppercase; padding:.15rem .4rem; border-radius:6px; flex-shrink:0; margin-top:.2rem; }
+.kia-danger.low { background:#e6f4ea; color:#1e7a34; }
+.kia-danger.medium { background:#fff4e0; color:#8a5a00; }
+.kia-danger.high { background:#fde8e8; color:#a01919; }
+.kia-plan-actions { display:flex; gap:.5rem; margin-top:.8rem; }
+.kia-plan-status { margin-top:.7rem; font-size:.83rem; color:var(--text-2); }
+.kia-plan-status.ok { color:#1e7a34; }
 .kia-bubble-user {
   background: var(--kia-blue); color:#fff;
   padding:.7rem 1rem; border-radius:20px 20px 6px 20px; max-width:78%;

@@ -325,6 +325,76 @@ async def connectors_list() -> dict[str, Any]:
 
 
 # ---------------------------------------------------------------------------
+# Host command execution (confirmation-gated): plan -> approve in UI -> run
+# ---------------------------------------------------------------------------
+
+
+class ExecPlanRequest(BaseModel):
+    """A natural-language task to turn into reviewable shell commands."""
+
+    task: str
+    os: str = "Windows"
+
+
+class ExecRunRequest(BaseModel):
+    """Run one approved command from a previously-planned set."""
+
+    plan_id: str
+    index: int
+
+
+@app.get("/api/v1/exec/status")
+async def exec_status() -> dict[str, Any]:
+    """Whether execution is enabled and the host runner is reachable."""
+    if not settings.exec_enabled:
+        return {"enabled": False}
+    from brain_exec.runner_client import HostRunnerClient
+
+    return {"enabled": True, "runner": await HostRunnerClient().health()}
+
+
+@app.post("/api/v1/exec/plan")
+async def exec_plan(body: ExecPlanRequest) -> dict[str, Any]:
+    """Propose shell commands for a task. Does NOT execute anything."""
+    if not settings.exec_enabled:
+        raise HTTPException(status_code=503, detail="Execution disabled (set EXEC_ENABLED=true)")
+    from brain_exec.planner import CommandPlanner
+    from brain_exec.store import ExecPlanStore
+
+    try:
+        commands = await CommandPlanner().plan(body.task, os_name=body.os)
+    except Exception as e:
+        raise _llm_error(e)
+    store = ExecPlanStore()
+    try:
+        plan_id = await store.save(body.task, commands)
+    finally:
+        await store.close()
+    return {"plan_id": plan_id, "commands": commands, "os": body.os}
+
+
+@app.post("/api/v1/exec/run")
+async def exec_run(body: ExecRunRequest) -> dict[str, Any]:
+    """Run a SINGLE approved command (must belong to a stored plan)."""
+    if not settings.exec_enabled:
+        raise HTTPException(status_code=503, detail="Execution disabled (set EXEC_ENABLED=true)")
+    from brain_exec.runner_client import HostRunnerClient
+    from brain_exec.store import ExecPlanStore
+
+    store = ExecPlanStore()
+    try:
+        command = await store.command_at(body.plan_id, body.index)
+    finally:
+        await store.close()
+    if command is None:
+        raise HTTPException(status_code=404, detail="command not found for this plan/index")
+    traceback_logged = f"[exec] running approved command: {command}"
+    print(traceback_logged)  # audit trail in container logs
+    result = await HostRunnerClient().run(command)
+    return {"command": command, **result}
+
+
+# ---------------------------------------------------------------------------
 # Conversation history (durable, Redis-backed) + streaming chat
 # ---------------------------------------------------------------------------
 

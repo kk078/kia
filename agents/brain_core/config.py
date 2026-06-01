@@ -99,6 +99,12 @@ class Settings(BaseSettings):
     dspy_enabled: bool = False
     dspy_model: str = ""  # empty -> ollama_chat/<default_oss_model>
 
+    # Host command execution (opt-in, confirmation-gated via the UI + host runner).
+    exec_enabled: bool = False
+    host_runner_url: str = ""  # e.g. http://host.docker.internal:8765
+    host_runner_token: str = ""
+    exec_timeout_seconds: int = 300
+
     # Connectors / MCP client layer.
     connectors_enabled: bool = False
     connectors_config: str = "/app/data/connectors.json"

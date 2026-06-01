@@ -113,6 +113,17 @@ export default {
     return api.post(`/conversations/${id}/messages`, { messages })
   },
 
+  // Host command execution (confirmation-gated)
+  execStatus() {
+    return api.get('/exec/status')
+  },
+  execPlan(task, os = 'Windows') {
+    return api.post('/exec/plan', { task, os })
+  },
+  execRun(planId, index) {
+    return api.post('/exec/run', { plan_id: planId, index })
+  },
+
   // Streaming chat. onToken(text) is called per chunk; resolves with {conversationId, model}.
   // Uses fetch + ReadableStream to read Server-Sent Events (axios can't stream in-browser).
   async streamChat(message, { conversationId = null, taskType = 'simple', model = null, onToken, onMeta } = {}) {
