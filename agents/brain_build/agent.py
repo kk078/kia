@@ -195,7 +195,8 @@ class BuildAgent:
                 continue
 
             tool = str(action.get("tool", ""))
-            args = action.get("args") if isinstance(action.get("args"), dict) else {}
+            raw_args = action.get("args")
+            args: dict[str, Any] = raw_args if isinstance(raw_args, dict) else {}
             thought = str(action.get("thought", "")).strip()
             self._record(sid, "assistant", reply)
             if thought:
