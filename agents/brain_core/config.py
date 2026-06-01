@@ -113,6 +113,9 @@ class Settings(BaseSettings):
     host_runner_token: str = ""
     exec_timeout_seconds: int = 300
 
+    # Autonomous build agent: default working directory the agent is jailed to.
+    build_root: str = ""  # empty -> C:\dev on Windows, ~ elsewhere
+
     # Connectors / MCP client layer.
     connectors_enabled: bool = False
     connectors_config: str = "/app/data/connectors.json"

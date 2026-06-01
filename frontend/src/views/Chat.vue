@@ -86,6 +86,39 @@
               <div v-else-if="msg.plan.state === 'done'" class="kia-plan-status ok">Finished — review the output above.</div>
               <div v-else-if="msg.plan.state === 'cancelled'" class="kia-plan-status">Cancelled — nothing was run.</div>
             </div>
+            <!-- Autonomous build panel -->
+            <div v-else-if="msg.build" class="kia-build">
+              <div class="kia-build-head">
+                <i class="fas fa-robot"></i>
+                <span>Building: <strong>{{ msg.build.goal }}</strong></span>
+                <button v-if="msg.build.state === 'running' || msg.build.state === 'awaiting'"
+                        class="kia-build-stop" @click="stopBuild(msg.build)">Stop</button>
+              </div>
+              <div v-if="msg.build.root" class="kia-build-root">in {{ msg.build.root }}</div>
+              <div v-for="(e, ei) in msg.build.events" :key="ei" class="kia-evt">
+                <div v-if="e.type === 'thought'" class="kia-evt-thought"><i class="fas fa-comment-dots"></i> {{ e.content }}</div>
+                <div v-else-if="e.type === 'action'" class="kia-evt-action">
+                  <span class="kia-evt-tool">{{ e.tool }}</span>
+                  <span class="kia-danger" :class="e.danger">{{ e.danger }}</span>
+                  <code>{{ e.preview }}</code>
+                </div>
+                <pre v-else-if="e.type === 'observation'" class="kia-evt-obs" :class="{ bad: !e.ok }">{{ e.content }}</pre>
+                <div v-else-if="e.type === 'approval'" class="kia-evt-approval">
+                  <div class="kia-evt-approval-head"><i class="fas fa-triangle-exclamation"></i> Approve this high-risk command?</div>
+                  <code class="kia-cmd-code">{{ e.command }}</code>
+                  <div v-if="msg.build.pending && msg.build.state === 'awaiting'" class="kia-plan-actions">
+                    <button class="kia-btn" style="padding:.4rem .8rem;border-radius:10px" @click="decideBuild(msg.build, true)">Approve &amp; run</button>
+                    <button class="kia-btn-soft" style="padding:.4rem .8rem" @click="decideBuild(msg.build, false)">Reject</button>
+                  </div>
+                </div>
+                <div v-else-if="e.type === 'finish'" class="kia-evt-finish"><i class="fas fa-circle-check"></i> {{ e.summary }}</div>
+                <div v-else-if="e.type === 'limit'" class="kia-evt-warn">{{ e.content }}</div>
+                <div v-else-if="e.type === 'error'" class="kia-evt-err">{{ e.content }}</div>
+              </div>
+              <div v-if="msg.build.state === 'running'" class="kia-build-status">
+                <span class="kia-dot"></span><span class="kia-dot"></span><span class="kia-dot"></span> working…
+              </div>
+            </div>
             <!-- Normal bubble -->
             <div v-else :class="msg.role === 'user' ? 'kia-bubble-user' : 'kia-bubble-ai'">
               <div class="kia-bubble-text" v-html="render(msg.content)"></div>
@@ -175,7 +208,8 @@ const commands = [
   { cmd: '/learn', desc: 'Teach KIA — add text to its knowledge base' },
   { cmd: '/brain', desc: 'Ask KIA from its knowledge base (retrieval)' },
   { cmd: '/use', desc: 'Call connector tools (GitHub, web, Slack…)' },
-  { cmd: '/build', desc: 'Plan & run commands on this computer (you approve each)' }
+  { cmd: '/build', desc: 'Plan & run commands on this computer (you approve each)' },
+  { cmd: '/agent', desc: 'Autonomous build — KIA writes files & runs commands to do it' }
 ]
 const menuOpen = ref(false)
 const menuIndex = ref(0)
@@ -346,6 +380,26 @@ const sendMessage = async () => {
     return
   }
 
+  // /agent <goal>  — autonomous build loop (think → act → observe), streamed live
+  if (text.toLowerCase().startsWith('/agent ')) {
+    const goal = text.slice(7).trim()
+    pushUser(goal)
+    const msg = { role: 'assistant', build: { goal, root: null, sessionId: null, events: [], state: 'running' } }
+    messages.value.push(msg)
+    streaming.value = true
+    scrollToBottom()
+    try {
+      await api.startBuild(goal, null, (evt) => handleBuildEvent(msg.build, evt))
+    } catch (e) {
+      msg.build.events.push({ type: 'error', content: errText(e) })
+    } finally {
+      if (msg.build.state === 'running') msg.build.state = 'done'
+      streaming.value = false
+      scrollToBottom()
+    }
+    return
+  }
+
   // Normal chat — streamed + persisted to durable history.
   pushUser(text)
   const aiMsg = { role: 'assistant', content: '', streaming: true }
@@ -398,6 +452,39 @@ const runPlan = async (msg) => {
   } catch { /* fall back to the generic line */ }
   pushAI(summary)
   persistTurn('/build ' + plan.task, summary)
+}
+
+// --- Autonomous build agent ---
+const handleBuildEvent = (build, evt) => {
+  if (evt.type === 'meta') {
+    build.sessionId = evt.session_id; build.root = evt.root
+  } else if (evt.type === 'approval') {
+    build.pending = evt; build.state = 'awaiting'; build.events.push(evt)
+  } else {
+    build.events.push(evt)
+    if (evt.type === 'finish' || evt.type === 'limit') build.state = 'done'
+  }
+  scrollToBottom()
+}
+
+const decideBuild = async (build, approve) => {
+  build.pending = null; build.state = 'running'; scrollToBottom()
+  try {
+    await api.resumeBuild(build.sessionId, approve, (evt) => handleBuildEvent(build, evt))
+  } catch (e) {
+    build.events.push({ type: 'error', content: errText(e) })
+  } finally {
+    if (build.state === 'running') build.state = 'done'
+    streaming.value = false
+    scrollToBottom()
+  }
+}
+
+const stopBuild = (build) => {
+  if (build.sessionId) api.cancelBuild(build.sessionId).catch(() => {})
+  build.state = 'stopped'; build.pending = null
+  build.events.push({ type: 'error', content: 'Stopped by you.' })
+  streaming.value = false
 }
 
 const newChat = () => {
@@ -499,6 +586,46 @@ onMounted(async () => {
 }
 .kia-dot:nth-child(2){ animation-delay:.2s } .kia-dot:nth-child(3){ animation-delay:.4s }
 @keyframes kia-blink { 0%,80%,100%{ opacity:.25; transform:translateY(0) } 40%{ opacity:1; transform:translateY(-3px) } }
+/* Autonomous build panel */
+.kia-build {
+  background:var(--surface); border:1px solid var(--hairline); border-radius:16px;
+  padding:1rem; max-width:92%; box-shadow:var(--shadow-sm); font-size:.9rem;
+}
+.kia-build-head { display:flex; align-items:center; gap:.5rem; font-weight:600; }
+.kia-build-head i { color:var(--kia-blue); }
+.kia-build-stop {
+  margin-left:auto; font-size:.78rem; padding:.25rem .6rem; border-radius:8px;
+  border:1px solid #f0b4b4; background:#fff5f5; color:#a01919; cursor:pointer;
+}
+.kia-build-root { color:var(--text-3); font-size:.78rem; margin:.2rem 0 .6rem; font-family:"SF Mono",ui-monospace,Menlo,monospace; }
+.kia-evt { margin:.35rem 0; }
+.kia-evt-thought { color:var(--text-2); font-style:italic; }
+.kia-evt-thought i { color:var(--text-3); margin-right:.3rem; }
+.kia-evt-action { display:flex; align-items:center; gap:.45rem; flex-wrap:wrap; }
+.kia-evt-tool {
+  font-size:.72rem; font-weight:700; text-transform:uppercase; color:var(--kia-blue-deep);
+  background:var(--fill); padding:.12rem .4rem; border-radius:6px;
+}
+.kia-evt-action code {
+  font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:.8rem; color:var(--text);
+  background:var(--bg); border:1px solid var(--hairline); border-radius:7px; padding:.2rem .45rem;
+  white-space:pre-wrap; word-break:break-all; flex:1; min-width:0;
+}
+.kia-evt-obs {
+  margin:.3rem 0 .5rem; background:var(--bg); border:1px solid var(--hairline); border-radius:8px;
+  padding:.45rem .6rem; font-family:"SF Mono",ui-monospace,Menlo,monospace; font-size:.76rem;
+  white-space:pre-wrap; max-height:240px; overflow:auto; color:var(--text-2);
+}
+.kia-evt-obs.bad { border-color:#f0b4b4; background:#fff5f5; color:#a01919; }
+.kia-evt-approval {
+  background:#fff4e0; border:1px solid #f3d28a; border-radius:10px; padding:.6rem .7rem; margin:.4rem 0;
+}
+.kia-evt-approval-head { color:#8a5a00; font-weight:600; margin-bottom:.4rem; }
+.kia-evt-finish { color:#1e7a34; font-weight:600; margin-top:.4rem; }
+.kia-evt-finish i { margin-right:.3rem; }
+.kia-evt-warn { color:#8a5a00; }
+.kia-evt-err { color:#a01919; }
+.kia-build-status { color:var(--text-3); font-size:.82rem; margin-top:.4rem; }
 @media (max-width: 760px) {
   .kia-chat-layout { flex-direction:column; }
   .kia-history { width:100%; max-height:30vh; }

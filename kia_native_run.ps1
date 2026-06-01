@@ -31,6 +31,7 @@ $env:OLLAMA_BASE_URL       = "http://localhost:11434"
 $env:HOST_RUNNER_URL       = "http://localhost:8765"
 $env:TRAINING_CAPTURE_PATH = "$ROOT\data\kia_train.jsonl"
 $env:CONNECTORS_CONFIG     = "$ROOT\data\connectors.json"
+$env:BUILD_ROOT            = $ROOT
 $env:ENVIRONMENT           = "production"
 
 # 3. Ensure Ollama (bound to all interfaces) and the host runner are up.

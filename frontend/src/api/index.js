@@ -173,6 +173,47 @@ export default {
     return { conversationId: convId, model: usedModel, degraded: degradedSeen }
   },
 
+  // Autonomous build agent (ReAct loop, streamed). onEvent(evt) per step.
+  async _streamBuild(url, body, onEvent) {
+    const resp = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    })
+    if (!resp.ok || !resp.body) throw new Error(`build stream failed: HTTP ${resp.status}`)
+    const reader = resp.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let sessionId = body.session_id || null
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const blocks = buffer.split('\n\n')
+      buffer = blocks.pop()
+      for (const block of blocks) {
+        const line = block.trim()
+        if (!line.startsWith('data:')) continue
+        const data = line.slice(5).trim()
+        if (data === '[DONE]') continue
+        let evt
+        try { evt = JSON.parse(data) } catch { continue }
+        if (evt.session_id) sessionId = evt.session_id
+        onEvent && onEvent(evt)
+      }
+    }
+    return { sessionId }
+  },
+  startBuild(goal, workdir = null, onEvent) {
+    return this._streamBuild('/api/v1/build/run', { goal, workdir }, onEvent)
+  },
+  resumeBuild(sessionId, approve, onEvent) {
+    return this._streamBuild('/api/v1/build/resume', { session_id: sessionId, approve }, onEvent)
+  },
+  cancelBuild(sessionId) {
+    return api.post('/build/cancel', { session_id: sessionId, approve: false })
+  },
+
   // System
   health() {
     return axios.get('/health')

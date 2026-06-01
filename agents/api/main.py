@@ -1,6 +1,7 @@
 """Python FastAPI Gateway for Secondary Brain."""
 
 import json
+import os
 import traceback
 from collections.abc import AsyncGenerator
 from datetime import datetime
@@ -412,6 +413,98 @@ async def exec_summary(body: ExecSummaryRequest) -> dict[str, str]:
         return {"summary": await CommandPlanner().summarize(body.task, body.results)}
     except Exception as e:
         raise _llm_error(e)
+
+
+# ---------------------------------------------------------------------------
+# Autonomous build agent (ReAct loop: think -> act -> observe -> repeat)
+# ---------------------------------------------------------------------------
+
+
+class BuildRunRequest(BaseModel):
+    """Start an autonomous build for a goal in a working directory."""
+
+    goal: str
+    workdir: str | None = None
+
+
+class BuildDecisionRequest(BaseModel):
+    """Approve or reject a paused high-risk step, or cancel a session."""
+
+    session_id: str
+    approve: bool = False
+
+
+def _build_root(req_workdir: str | None) -> str:
+    """Resolve the build working directory (request > BUILD_ROOT env > sensible default)."""
+    root = (req_workdir or settings.build_root or "").strip()
+    if not root:
+        root = "C:\\dev" if os.name == "nt" else os.path.expanduser("~")
+    return os.path.abspath(root)
+
+
+@app.post("/api/v1/build/run")
+async def build_run(body: BuildRunRequest) -> StreamingResponse:
+    """Start the agentic build loop and stream its events (SSE)."""
+    if not settings.exec_enabled:
+        raise HTTPException(status_code=503, detail="Execution disabled (set EXEC_ENABLED=true)")
+    from brain_build import store as build_store
+    from brain_build.agent import BuildAgent, initial_messages
+
+    root = _build_root(body.workdir)
+    if not os.path.isdir(root):
+        raise HTTPException(status_code=400, detail=f"working directory not found: {root}")
+    sid = build_store.create(body.goal, root, initial_messages(body.goal, root))
+    agent = BuildAgent()
+
+    async def gen() -> AsyncGenerator[str, None]:
+        yield _sse({"type": "meta", "session_id": sid, "root": root, "goal": body.goal})
+        try:
+            async for ev in agent.run(sid):
+                yield _sse(ev)
+        except Exception as e:  # noqa: BLE001 - never break the SSE contract
+            yield _sse({"type": "error", "content": f"{type(e).__name__}: {e}"})
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/v1/build/resume")
+async def build_resume(body: BuildDecisionRequest) -> StreamingResponse:
+    """Resume a paused build after approving/rejecting the gated step (SSE)."""
+    if not settings.exec_enabled:
+        raise HTTPException(status_code=503, detail="Execution disabled (set EXEC_ENABLED=true)")
+    from brain_build.agent import BuildAgent
+
+    agent = BuildAgent()
+    sid = body.session_id
+    approve = body.approve
+
+    async def gen() -> AsyncGenerator[str, None]:
+        try:
+            async for ev in agent.resume(sid, approve):
+                yield _sse(ev)
+        except Exception as e:  # noqa: BLE001
+            yield _sse({"type": "error", "content": f"{type(e).__name__}: {e}"})
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@app.post("/api/v1/build/cancel")
+async def build_cancel(body: BuildDecisionRequest) -> dict[str, str]:
+    """Drop a build session (Stop button)."""
+    from brain_build import store as build_store
+
+    build_store.delete(body.session_id)
+    return {"status": "cancelled"}
 
 
 # ---------------------------------------------------------------------------
