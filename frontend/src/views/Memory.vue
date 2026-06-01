@@ -1,126 +1,78 @@
 <template>
-  <div class="max-w-6xl mx-auto">
-    <h1 class="text-3xl font-bold mb-6">
-      <i class="fas fa-database text-blue-500 mr-3"></i>
-      Memory Browser
-    </h1>
+  <div class="mx-auto" style="max-width:980px">
+    <h1 style="font-size:1.9rem;font-weight:700;margin-bottom:.25rem">Memory</h1>
+    <p style="color:var(--text-2);font-size:.9rem;margin-bottom:1.5rem">Episodes, facts, and skills KIA remembers</p>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
-      <button
-        @click="activeTab = 'episodes'"
-        :class="activeTab === 'episodes' ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'"
-        class="p-6 rounded-lg transition-colors"
-      >
-        <i class="fas fa-film text-3xl mb-2"></i>
-        <h3 class="text-xl font-bold">Episodes</h3>
-        <p class="text-sm text-gray-400">Timestamped events</p>
-      </button>
-      <button
-        @click="activeTab = 'facts'"
-        :class="activeTab === 'facts' ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'"
-        class="p-6 rounded-lg transition-colors"
-      >
-        <i class="fas fa-lightbulb text-3xl mb-2"></i>
-        <h3 class="text-xl font-bold">Facts</h3>
-        <p class="text-sm text-gray-400">Knowledge graph</p>
-      </button>
-      <button
-        @click="activeTab = 'skills'"
-        :class="activeTab === 'skills' ? 'bg-blue-600' : 'bg-gray-800 hover:bg-gray-700'"
-        class="p-6 rounded-lg transition-colors"
-      >
-        <i class="fas fa-tools text-3xl mb-2"></i>
-        <h3 class="text-xl font-bold">Skills</h3>
-        <p class="text-sm text-gray-400">Procedural memory</p>
-      </button>
+    <!-- Segmented tab control -->
+    <div class="kia-segment" style="margin-bottom:1.25rem">
+      <button :class="{active: activeTab==='episodes'}" @click="activeTab='episodes'">
+        <i class="fas fa-film" style="margin-right:.4rem"></i>Episodes</button>
+      <button :class="{active: activeTab==='facts'}" @click="activeTab='facts'">
+        <i class="fas fa-diagram-project" style="margin-right:.4rem"></i>Facts</button>
+      <button :class="{active: activeTab==='skills'}" @click="activeTab='skills'">
+        <i class="fas fa-screwdriver-wrench" style="margin-right:.4rem"></i>Skills</button>
     </div>
 
-    <!-- Episodes Tab -->
-    <div v-if="activeTab === 'episodes'" class="bg-gray-800 rounded-lg p-6">
-      <h2 class="text-2xl font-bold mb-4">Episodes</h2>
-      <div class="mb-4 flex gap-2">
-        <input
-          v-model="episodeQuery"
-          @keyup.enter="searchEpisodes"
-          type="text"
-          placeholder="Search episodes..."
-          class="flex-1 bg-gray-700 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-        />
-        <button @click="searchEpisodes" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg">
-          <i class="fas fa-search"></i>
-        </button>
+    <!-- Episodes -->
+    <div v-if="activeTab==='episodes'" class="kia-card" style="padding:1.5rem">
+      <div class="flex gap-2 mb-4">
+        <input v-model="episodeQuery" @keyup.enter="searchEpisodes" type="text" placeholder="Search episodes…" class="kia-input" />
+        <button @click="searchEpisodes" class="kia-btn"><i class="fas fa-magnifying-glass"></i></button>
       </div>
       <div class="space-y-3">
-        <div v-for="episode in episodes" :key="episode.id" class="bg-gray-700 p-4 rounded-lg">
-          <div class="flex justify-between items-start mb-2">
-            <span class="text-sm text-gray-400">{{ new Date(episode.timestamp).toLocaleString() }}</span>
-            <span class="text-xs bg-blue-600 px-2 py-1 rounded">ID: {{ episode.id.substring(0, 8) }}</span>
+        <div v-for="episode in episodes" :key="episode.id" class="kia-rise" style="background:var(--surface-2);border:1px solid var(--hairline);border-radius:14px;padding:1rem">
+          <div class="flex justify-between items-start mb-1.5">
+            <span style="font-size:.8rem;color:var(--text-3)">{{ new Date(episode.timestamp).toLocaleString() }}</span>
+            <span style="font-size:.72rem;background:var(--fill);color:var(--text-2);padding:.15rem .5rem;border-radius:980px">{{ episode.id.substring(0,8) }}</span>
           </div>
-          <p class="mb-2">{{ episode.content }}</p>
-          <div v-if="Object.keys(episode.context).length > 0" class="text-sm text-gray-400">
+          <p style="font-size:.95rem">{{ episode.content }}</p>
+          <div v-if="Object.keys(episode.context||{}).length" style="font-size:.82rem;color:var(--text-2);margin-top:.5rem">
             <strong>Context:</strong> {{ JSON.stringify(episode.context) }}
           </div>
         </div>
-        <div v-if="episodes.length === 0" class="text-center text-gray-500 py-8">
-          No episodes found
-        </div>
+        <p v-if="episodes.length===0" style="text-align:center;color:var(--text-3);padding:2rem 0">No episodes found</p>
       </div>
     </div>
 
-    <!-- Facts Tab -->
-    <div v-if="activeTab === 'facts'" class="bg-gray-800 rounded-lg p-6">
-      <h2 class="text-2xl font-bold mb-4">Facts</h2>
-      <div class="mb-4 grid grid-cols-3 gap-2">
-        <input v-model="factSubject" type="text" placeholder="Subject" class="bg-gray-700 px-4 py-2 rounded-lg" />
-        <input v-model="factPredicate" type="text" placeholder="Predicate" class="bg-gray-700 px-4 py-2 rounded-lg" />
-        <input v-model="factObject" type="text" placeholder="Object" class="bg-gray-700 px-4 py-2 rounded-lg" />
+    <!-- Facts -->
+    <div v-if="activeTab==='facts'" class="kia-card" style="padding:1.5rem">
+      <div class="grid mb-3" style="grid-template-columns:1fr 1fr 1fr;gap:.5rem">
+        <input v-model="factSubject" placeholder="Subject" class="kia-input" />
+        <input v-model="factPredicate" placeholder="Predicate" class="kia-input" />
+        <input v-model="factObject" placeholder="Object" class="kia-input" />
       </div>
-      <button @click="queryFacts" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg mb-4">
-        <i class="fas fa-search mr-2"></i>Query Facts
-      </button>
+      <button @click="queryFacts" class="kia-btn mb-4"><i class="fas fa-magnifying-glass"></i> Query facts</button>
       <div class="space-y-3">
-        <div v-for="fact in facts" :key="fact.id" class="bg-gray-700 p-4 rounded-lg">
-          <div class="flex items-center gap-2 mb-2">
-            <span class="bg-green-600 px-3 py-1 rounded">{{ fact.subject }}</span>
-            <i class="fas fa-arrow-right text-gray-500"></i>
-            <span class="bg-yellow-600 px-3 py-1 rounded">{{ fact.predicate }}</span>
-            <i class="fas fa-arrow-right text-gray-500"></i>
-            <span class="bg-purple-600 px-3 py-1 rounded">{{ fact.object }}</span>
+        <div v-for="fact in facts" :key="fact.id" class="kia-rise" style="background:var(--surface-2);border:1px solid var(--hairline);border-radius:14px;padding:1rem">
+          <div class="flex items-center flex-wrap gap-2 mb-1.5">
+            <span class="kia-chip" style="background:rgba(52,199,89,.14);color:#1a7f37">{{ fact.subject }}</span>
+            <i class="fas fa-arrow-right" style="color:var(--text-3);font-size:.75rem"></i>
+            <span class="kia-chip" style="background:rgba(255,149,0,.16);color:#9a5b00">{{ fact.predicate }}</span>
+            <i class="fas fa-arrow-right" style="color:var(--text-3);font-size:.75rem"></i>
+            <span class="kia-chip" style="background:rgba(94,92,230,.14);color:#4b49c4">{{ fact.object }}</span>
           </div>
-          <div class="text-sm text-gray-400">
-            Confidence: {{ (fact.confidence * 100).toFixed(0) }}%
-          </div>
+          <div style="font-size:.8rem;color:var(--text-2)">Confidence {{ (fact.confidence*100).toFixed(0) }}%</div>
         </div>
-        <div v-if="facts.length === 0" class="text-center text-gray-500 py-8">
-          No facts found
-        </div>
+        <p v-if="facts.length===0" style="text-align:center;color:var(--text-3);padding:2rem 0">No facts found</p>
       </div>
     </div>
 
-    <!-- Skills Tab -->
-    <div v-if="activeTab === 'skills'" class="bg-gray-800 rounded-lg p-6">
-      <h2 class="text-2xl font-bold mb-4">Skills</h2>
-      <button @click="loadSkills" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded-lg mb-4">
-        <i class="fas fa-sync mr-2"></i>Load Skills
-      </button>
+    <!-- Skills -->
+    <div v-if="activeTab==='skills'" class="kia-card" style="padding:1.5rem">
+      <button @click="loadSkills" class="kia-btn mb-4"><i class="fas fa-rotate"></i> Load skills</button>
       <div class="space-y-3">
-        <div v-for="skill in skills" :key="skill.id" class="bg-gray-700 p-4 rounded-lg">
-          <h3 class="text-xl font-bold mb-2">{{ skill.name }}</h3>
-          <p class="text-gray-400 mb-3">{{ skill.description }}</p>
-          <div class="mb-2">
-            <strong>Steps:</strong>
-            <ol class="list-decimal list-inside ml-4 mt-1">
-              <li v-for="(step, idx) in skill.steps" :key="idx">{{ step }}</li>
-            </ol>
-          </div>
-          <div class="flex gap-4 text-sm text-gray-400">
-            <span>Success Rate: {{ (skill.success_rate * 100).toFixed(0) }}%</span>
-            <span>Usage Count: {{ skill.usage_count }}</span>
+        <div v-for="skill in skills" :key="skill.id" class="kia-rise" style="background:var(--surface-2);border:1px solid var(--hairline);border-radius:14px;padding:1rem">
+          <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:.25rem">{{ skill.name }}</h3>
+          <p style="color:var(--text-2);font-size:.9rem;margin-bottom:.6rem">{{ skill.description }}</p>
+          <ol style="list-style:decimal;margin-left:1.2rem;font-size:.9rem">
+            <li v-for="(step,i) in skill.steps" :key="i" style="margin-bottom:.15rem">{{ step }}</li>
+          </ol>
+          <div class="flex gap-4" style="font-size:.8rem;color:var(--text-2);margin-top:.6rem">
+            <span>Success {{ (skill.success_rate*100).toFixed(0) }}%</span>
+            <span>Used {{ skill.usage_count }}×</span>
           </div>
         </div>
-        <div v-if="skills.length === 0" class="text-center text-gray-500 py-8">
-          No skills found
-        </div>
+        <p v-if="skills.length===0" style="text-align:center;color:var(--text-3);padding:2rem 0">No skills found</p>
       </div>
     </div>
   </div>
@@ -131,45 +83,14 @@ import { ref } from 'vue'
 import api from '../api'
 
 const activeTab = ref('episodes')
-
-// Episodes
-const episodeQuery = ref('')
-const episodes = ref([])
-const searchEpisodes = async () => {
-  try {
-    const response = await api.retrieveEpisodes(episodeQuery.value)
-    episodes.value = response.data
-  } catch (error) {
-    console.error('Error searching episodes:', error)
-  }
-}
-
-// Facts
-const factSubject = ref('')
-const factPredicate = ref('')
-const factObject = ref('')
-const facts = ref([])
-const queryFacts = async () => {
-  try {
-    const response = await api.queryFacts(
-      factSubject.value || null,
-      factPredicate.value || null,
-      factObject.value || null
-    )
-    facts.value = response.data
-  } catch (error) {
-    console.error('Error querying facts:', error)
-  }
-}
-
-// Skills
+const episodeQuery = ref(''); const episodes = ref([])
+const searchEpisodes = async () => { try { episodes.value = (await api.retrieveEpisodes(episodeQuery.value)).data } catch(e){ console.error(e) } }
+const factSubject = ref(''); const factPredicate = ref(''); const factObject = ref(''); const facts = ref([])
+const queryFacts = async () => { try { facts.value = (await api.queryFacts(factSubject.value||null, factPredicate.value||null, factObject.value||null)).data } catch(e){ console.error(e) } }
 const skills = ref([])
-const loadSkills = async () => {
-  try {
-    const response = await api.listSkills()
-    skills.value = response.data
-  } catch (error) {
-    console.error('Error loading skills:', error)
-  }
-}
+const loadSkills = async () => { try { skills.value = (await api.listSkills()).data } catch(e){ console.error(e) } }
 </script>
+
+<style scoped>
+.kia-chip { padding:.25rem .7rem; border-radius:980px; font-size:.85rem; font-weight:500; }
+</style>

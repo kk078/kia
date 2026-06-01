@@ -1,86 +1,48 @@
 <template>
-  <div class="max-w-4xl mx-auto">
-    <h1 class="text-3xl font-bold mb-6">
-      <i class="fas fa-project-diagram text-blue-500 mr-3"></i>
-      Orchestrator
-    </h1>
+  <div class="mx-auto" style="max-width:820px">
+    <h1 style="font-size:1.9rem;font-weight:700;margin-bottom:.25rem">Orchestrator</h1>
+    <p style="color:var(--text-2);font-size:.9rem;margin-bottom:1.5rem">Give KIA a complex goal — it plans, executes, and synthesizes</p>
 
-    <div class="bg-gray-800 rounded-lg p-6 mb-6">
-      <h2 class="text-2xl font-bold mb-4">Submit Complex Goal</h2>
-      <div class="space-y-4">
-        <div>
-          <label class="block text-sm font-semibold mb-2">Goal</label>
-          <textarea
-            v-model="goal"
-            rows="4"
-            placeholder="Describe your complex goal... The orchestrator will break it down into subtasks and execute them."
-            class="w-full bg-gray-700 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          ></textarea>
-        </div>
-        <div>
-          <label class="block text-sm font-semibold mb-2">Session ID</label>
-          <input
-            v-model="sessionId"
-            type="text"
-            placeholder="default"
-            class="w-full bg-gray-700 px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-        <button
-          @click="runOrchestrator"
-          :disabled="running"
-          class="w-full bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold disabled:opacity-50"
-        >
-          <i :class="running ? 'fas fa-spinner fa-spin' : 'fas fa-play'" class="mr-2"></i>
-          {{ running ? 'Executing...' : 'Run Orchestrator' }}
-        </button>
-      </div>
+    <div class="kia-card" style="padding:1.5rem;margin-bottom:1.25rem">
+      <label class="kia-label">Goal</label>
+      <textarea v-model="goal" rows="4" placeholder="Describe a complex goal. KIA breaks it into subtasks and executes them…" class="kia-textarea mb-3"></textarea>
+      <label class="kia-label">Session ID</label>
+      <input v-model="sessionId" placeholder="default" class="kia-input mb-4" />
+      <button @click="runOrchestrator" :disabled="running" class="kia-btn" style="width:100%">
+        <i :class="running ? 'fas fa-spinner fa-spin' : 'fas fa-play'"></i>
+        {{ running ? 'Executing…' : 'Run orchestrator' }}
+      </button>
     </div>
 
-    <div v-if="result" class="bg-gray-800 rounded-lg p-6">
-      <h2 class="text-2xl font-bold mb-4">
-        <i class="fas fa-check-circle text-green-500 mr-2"></i>
-        Result
-      </h2>
-      <div class="space-y-4">
+    <div v-if="result" class="kia-card kia-rise" style="padding:1.5rem">
+      <h2 style="font-size:1.15rem;font-weight:600;margin-bottom:1rem"><i class="fas fa-circle-check" style="color:var(--green);margin-right:.5rem"></i>Result</h2>
+      <p class="kia-label">Response</p>
+      <div style="background:var(--surface-2);border:1px solid var(--hairline);border-radius:12px;padding:1rem;white-space:pre-wrap;font-size:.92rem;line-height:1.55;margin-bottom:1rem">{{ result.content }}</div>
+
+      <div class="grid" style="grid-template-columns:1fr 1fr;gap:1rem">
         <div>
-          <h3 class="font-semibold mb-2">Response</h3>
-          <div class="bg-gray-700 p-4 rounded-lg whitespace-pre-wrap">
-            {{ result.content }}
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-4">
-          <div>
-            <h3 class="font-semibold mb-2">Confidence</h3>
-            <div class="bg-gray-700 p-4 rounded-lg">
-              <div class="flex items-center justify-between mb-2">
-                <span>{{ (result.confidence * 100).toFixed(0) }}%</span>
-              </div>
-              <div class="w-full bg-gray-600 rounded-full h-2">
-                <div
-                  class="bg-blue-600 h-2 rounded-full"
-                  :style="{ width: `${result.confidence * 100}%` }"
-                ></div>
-              </div>
-            </div>
-          </div>
-          <div>
-            <h3 class="font-semibold mb-2">Sources</h3>
-            <div class="bg-gray-700 p-4 rounded-lg">
-              <ul class="list-disc list-inside space-y-1">
-                <li v-for="(source, idx) in result.sources" :key="idx" class="text-sm">
-                  {{ source }}
-                </li>
-              </ul>
+          <p class="kia-label">Confidence</p>
+          <div style="background:var(--surface-2);border:1px solid var(--hairline);border-radius:12px;padding:1rem">
+            <div class="flex justify-between mb-2" style="font-size:.9rem;font-weight:600">{{ (result.confidence*100).toFixed(0) }}%</div>
+            <div style="background:var(--fill);border-radius:980px;height:8px;overflow:hidden">
+              <div :style="{ width:`${result.confidence*100}%`, background:'var(--kia-blue)', height:'100%', borderRadius:'980px', transition:'width .4s ease' }"></div>
             </div>
           </div>
         </div>
-        <div v-if="result.metadata">
-          <h3 class="font-semibold mb-2">Metadata</h3>
-          <div class="bg-gray-700 p-4 rounded-lg">
-            <pre class="text-sm overflow-x-auto">{{ JSON.stringify(result.metadata, null, 2) }}</pre>
+        <div>
+          <p class="kia-label">Sources</p>
+          <div style="background:var(--surface-2);border:1px solid var(--hairline);border-radius:12px;padding:1rem">
+            <ul style="list-style:disc;margin-left:1.1rem;font-size:.85rem">
+              <li v-for="(src,i) in result.sources" :key="i">{{ src }}</li>
+              <li v-if="!result.sources || result.sources.length===0" style="list-style:none;margin-left:-1.1rem;color:var(--text-3)">—</li>
+            </ul>
           </div>
         </div>
+      </div>
+
+      <div v-if="result.metadata && Object.keys(result.metadata).length" style="margin-top:1rem">
+        <p class="kia-label">Metadata</p>
+        <pre style="background:var(--surface-2);border:1px solid var(--hairline);border-radius:12px;padding:1rem;font-size:.8rem;overflow-x:auto;font-family:'SF Mono',ui-monospace,Menlo,monospace">{{ JSON.stringify(result.metadata, null, 2) }}</pre>
       </div>
     </div>
   </div>
@@ -90,27 +52,16 @@
 import { ref } from 'vue'
 import api from '../api'
 
-const goal = ref('')
-const sessionId = ref('default')
-const running = ref(false)
-const result = ref(null)
-
+const goal = ref(''); const sessionId = ref('default'); const running = ref(false); const result = ref(null)
 const runOrchestrator = async () => {
   if (!goal.value.trim()) return
-  running.value = true
-  result.value = null
-  try {
-    const response = await api.runOrchestrator(goal.value, sessionId.value || 'default')
-    result.value = response.data
-  } catch (error) {
-    result.value = {
-      content: `Error: ${error.response?.data?.detail || error.message}`,
-      confidence: 0,
-      sources: [],
-      metadata: {}
-    }
-  } finally {
-    running.value = false
-  }
+  running.value = true; result.value = null
+  try { result.value = (await api.runOrchestrator(goal.value, sessionId.value || 'default')).data }
+  catch (e) { result.value = { content: `Error: ${e.response?.data?.detail || e.message}`, confidence: 0, sources: [], metadata: {} } }
+  finally { running.value = false }
 }
 </script>
+
+<style scoped>
+.kia-label { display:block; font-size:.8rem; font-weight:600; color:var(--text-2); margin-bottom:.35rem; }
+</style>

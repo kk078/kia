@@ -1,78 +1,35 @@
 <template>
-  <div class="max-w-6xl mx-auto">
-    <h1 class="text-3xl font-bold mb-6">
-      <i class="fas fa-tachometer-alt text-blue-500 mr-3"></i>
-      System Dashboard
-    </h1>
+  <div class="mx-auto" style="max-width:980px">
+    <div class="flex items-center justify-between mb-6">
+      <div>
+        <h1 style="font-size:1.9rem;font-weight:700;margin-bottom:.25rem">Dashboard</h1>
+        <p style="color:var(--text-2);font-size:.9rem">System health · v{{ status.version }} · {{ status.environment }}</p>
+      </div>
+      <button @click="refreshStatus" class="kia-btn-soft"><i class="fas fa-rotate"></i> Refresh</button>
+    </div>
 
-    <!-- Health Status -->
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-      <div
-        v-for="service in services"
-        :key="service.name"
-        class="bg-gray-800 rounded-lg p-6"
-      >
-        <div class="flex items-center justify-between mb-2">
-          <h3 class="text-lg font-bold">{{ service.name }}</h3>
-          <i
-            :class="service.healthy ? 'fas fa-check-circle text-green-500' : 'fas fa-times-circle text-red-500'"
-            class="text-2xl"
-          ></i>
+    <!-- Service cards -->
+    <div class="grid mb-6" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:1rem">
+      <div v-for="s in services" :key="s.name" class="kia-card" style="padding:1.25rem">
+        <div class="flex items-center justify-between mb-1">
+          <h3 style="font-size:1.05rem;font-weight:600">{{ s.name }}</h3>
+          <span class="kia-status-dot" :style="{ background: s.healthy ? 'var(--green)' : 'var(--red)' }"></span>
         </div>
-        <p class="text-sm text-gray-400">{{ service.url }}</p>
-        <p :class="service.healthy ? 'text-green-400' : 'text-red-400'" class="text-sm font-semibold mt-2">
-          {{ service.healthy ? 'Healthy' : 'Unhealthy' }}
+        <p style="font-size:.8rem;color:var(--text-3)">{{ s.url }}</p>
+        <p :style="{ color: s.healthy ? '#1a7f37' : '#c4271f', fontSize:'.85rem', fontWeight:600, marginTop:'.5rem' }">
+          {{ s.healthy ? 'Healthy' : 'Unreachable' }}
         </p>
       </div>
     </div>
 
-    <!-- System Info -->
-    <div class="bg-gray-800 rounded-lg p-6 mb-6">
-      <h2 class="text-2xl font-bold mb-4">System Information</h2>
-      <div class="grid grid-cols-2 gap-4">
-        <div>
-          <p class="text-gray-400 text-sm">Version</p>
-          <p class="text-xl font-bold">{{ status.version }}</p>
-        </div>
-        <div>
-          <p class="text-gray-400 text-sm">Environment</p>
-          <p class="text-xl font-bold">{{ status.environment }}</p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Quick Actions -->
-    <div class="bg-gray-800 rounded-lg p-6">
-      <h2 class="text-2xl font-bold mb-4">Quick Actions</h2>
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <button
-          @click="refreshStatus"
-          class="bg-blue-600 hover:bg-blue-700 p-4 rounded-lg transition-colors"
-        >
-          <i class="fas fa-sync text-2xl mb-2"></i>
-          <p class="text-sm">Refresh Status</p>
-        </button>
-        <router-link
-          to="/chat"
-          class="bg-green-600 hover:bg-green-700 p-4 rounded-lg transition-colors text-center"
-        >
-          <i class="fas fa-comments text-2xl mb-2"></i>
-          <p class="text-sm">Start Chat</p>
-        </router-link>
-        <router-link
-          to="/memory"
-          class="bg-purple-600 hover:bg-purple-700 p-4 rounded-lg transition-colors text-center"
-        >
-          <i class="fas fa-database text-2xl mb-2"></i>
-          <p class="text-sm">Browse Memory</p>
-        </router-link>
-        <router-link
-          to="/knowledge"
-          class="bg-yellow-600 hover:bg-yellow-700 p-4 rounded-lg transition-colors text-center"
-        >
-          <i class="fas fa-book text-2xl mb-2"></i>
-          <p class="text-sm">Knowledge Base</p>
-        </router-link>
+    <!-- Quick actions -->
+    <div class="kia-card" style="padding:1.5rem">
+      <h2 style="font-size:1.15rem;font-weight:600;margin-bottom:1rem">Quick actions</h2>
+      <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:.75rem">
+        <router-link to="/chat" class="kia-action"><i class="fas fa-comment" style="color:var(--kia-blue)"></i><span>Chat</span></router-link>
+        <router-link to="/memory" class="kia-action"><i class="fas fa-layer-group" style="color:var(--purple)"></i><span>Memory</span></router-link>
+        <router-link to="/knowledge" class="kia-action"><i class="fas fa-book" style="color:var(--green)"></i><span>Knowledge</span></router-link>
+        <router-link to="/orchestrator" class="kia-action"><i class="fas fa-diagram-project" style="color:var(--orange)"></i><span>Orchestrator</span></router-link>
       </div>
     </div>
   </div>
@@ -88,29 +45,30 @@ const services = ref([
   { name: 'Weaviate', url: 'localhost:8081', healthy: false },
   { name: 'FalkorDB', url: 'localhost:6380', healthy: false }
 ])
-
-const status = ref({
-  version: '0.1.0',
-  environment: 'development'
-})
+const status = ref({ version: '0.1.0', environment: 'development' })
 
 const refreshStatus = async () => {
   try {
-    const healthResponse = await api.health()
-    services.value[0].healthy = healthResponse.data.status === 'healthy'
-
-    const statusResponse = await api.status()
-    status.value = statusResponse.data
+    const h = await api.health()
+    services.value[0].healthy = h.data.status === 'healthy'
+    const s = await api.status()
+    status.value = s.data
     services.value[1].healthy = true
     services.value[2].healthy = true
     services.value[3].healthy = true
-  } catch (error) {
-    console.error('Error refreshing status:', error)
-    services.value[0].healthy = false
-  }
+  } catch (e) { console.error(e); services.value[0].healthy = false }
 }
-
-onMounted(() => {
-  refreshStatus()
-})
+onMounted(refreshStatus)
 </script>
+
+<style scoped>
+.kia-status-dot { width:11px; height:11px; border-radius:50%; box-shadow:0 0 0 4px rgba(0,0,0,0.04); }
+.kia-action {
+  display:flex; flex-direction:column; align-items:center; gap:.5rem;
+  background:var(--surface-2); border:1px solid var(--hairline); border-radius:14px;
+  padding:1.1rem; text-decoration:none; color:var(--text); font-size:.9rem; font-weight:500;
+  transition: all .15s ease;
+}
+.kia-action i { font-size:1.5rem; }
+.kia-action:hover { background:var(--fill); transform:translateY(-2px); box-shadow:var(--shadow-sm); }
+</style>
