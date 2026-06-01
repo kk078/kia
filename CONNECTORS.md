@@ -67,6 +67,10 @@ Any MCP server works — just add it to `data/connectors.json`:
 Browse servers at modelcontextprotocol.io / the MCP servers registry. Filesystem,
 GitHub, Brave search, and Slack are pre-listed in `connectors.example.json`.
 
+> Note: `@modelcontextprotocol/server-github` is marked deprecated on npm but still
+> works. For long-term use, GitHub's official MCP server (github.com/github/github-mcp-server)
+> is the maintained option — add it as a command entry pointing at its binary/Docker image.
+
 ## Security note
 
 Connector tool output is untrusted input — KIA's guard layer (`brain_core/security`)

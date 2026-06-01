@@ -2,8 +2,9 @@
 
 Small local models pick tools unreliably, so the tool-planning step can be routed
 to a stronger model (e.g. Ollama Cloud) while everyday generation stays local.
-Set ``connector_planner_model`` in settings (e.g. "ollama_chat/gpt-oss:120b" via the
-cloud endpoint) to use a strong planner; otherwise it falls back to the local model.
+Set ``connector_planner_model`` in settings (e.g. "openai/gpt-oss:120b" with
+``connector_planner_base_url`` pointing at an OpenAI-compatible cloud endpoint) to use a
+strong planner; otherwise it falls back to the local model.
 """
 
 from __future__ import annotations
@@ -54,6 +55,10 @@ class ConnectorAgent:
         kwargs: dict[str, Any] = {}
         if settings.connector_planner_model and settings.connector_planner_base_url:
             # Dedicated planner endpoint (e.g. Ollama Cloud) for reliable tool-calling.
+            # Force the openai/ provider prefix: litellm only honors api_base on the
+            # OpenAI-compatible path; ollama_chat/ would ignore it and hit localhost.
+            bare = model.split("/", 1)[-1]
+            model = f"openai/{bare}"
             kwargs["api_base"] = settings.connector_planner_base_url
             kwargs["api_key"] = settings.connector_planner_api_key or "sk-dummy"
         else:

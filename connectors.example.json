@@ -41,5 +41,6 @@
         "SLACK_TEAM_ID": "T_replace_me"
       }
     }
-  }
+  },
+  "_note_github": "@modelcontextprotocol/server-github is deprecated on npm but still functional. For long-term use, consider GitHub's official MCP server (github.com/github/github-mcp-server, a Go/Docker binary) \u2014 add it as a command entry pointing at the binary."
 }
