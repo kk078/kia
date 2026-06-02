@@ -583,6 +583,7 @@ async def run_scenario(sc: Scenario, runs_dir: str) -> dict[str, Any]:
         sc.setup(root)
 
     sid = store.create(sc.goal, root, initial_messages(sc.goal, root))
+    store.save(sid, source="eval")  # tag so the corpus separates benchmark runs from real builds
     agent = BuildAgent()
     steps = 0
     finished = False

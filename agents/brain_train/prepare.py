@@ -95,7 +95,11 @@ def main() -> int:
         for ex in val:
             f.write(json.dumps(ex, ensure_ascii=False) + "\n")
 
+    n_eval = sum(1 for r in recs if r.get("source") == "eval")
+    n_real = len(recs) - n_eval
+    n_esc = sum(1 for r in recs if r.get("escalated"))
     print(f"traces read:  {len(recs)}  (from {src})")
+    print(f"  by source:  real /agent={n_real}  eval={n_eval}  | escalated-to-Claude={n_esc}")
     print(f"SFT examples: {n}  (train={len(train)} val={len(val)})  -> {out}")
     if n < 100:
         print(

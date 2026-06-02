@@ -161,6 +161,9 @@ def _capture_trace(session: dict[str, Any], summary: str) -> None:
             "root": session.get("root", ""),
             "steps": session.get("step", 0),
             "summary": summary,
+            "escalated": bool(session.get("escalated")),
+            "model": session.get("model") or session.get("base_model", ""),
+            "source": session.get("source", "agent"),
             "messages": session.get("messages", []),
         }
         with open(_trace_path(), "a", encoding="utf-8") as f:
@@ -242,6 +245,7 @@ class BuildAgent:
             yield {"type": "error", "content": "session not found"}
             return
         tools = BuildTools(s["root"])
+        s.setdefault("base_model", self.model)  # record the default driver for trace metadata
         budget = int(s.get("max_steps") or MAX_STEPS)
 
         while True:
