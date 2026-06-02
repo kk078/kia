@@ -263,7 +263,8 @@ def _setup_mutable_bug(root: str) -> None:
     _write(
         root, "test_bug.py",
         "from acc import append_item\n\n\n"
-        "def test_isolated():\n    assert append_item(1) == [1]\n    assert append_item(2) == [2]\n",
+        "def test_isolated():\n"
+        "    assert append_item(1) == [1]\n    assert append_item(2) == [2]\n",
     )
 
 
@@ -424,8 +425,8 @@ SCENARIOS: list[Scenario] = [
         goal=(
             "Create a package mathpkg/ with mathpkg/basic.py (add, sub), mathpkg/advanced.py "
             "(power(base, exp), factorial(n)), and mathpkg/__init__.py that re-exports all four so "
-            "`from mathpkg import add, sub, power, factorial` works. Add test_pkg.py importing from "
-            "mathpkg and testing each, and run pytest to confirm."
+            "`from mathpkg import add, sub, power, factorial` works. Add test_pkg.py that imports "
+            "from mathpkg and tests each, and run pytest to confirm."
         ),
         check=_check_package_api,
         tags=["multi-file", "packaging", "hard"],
