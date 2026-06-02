@@ -65,18 +65,24 @@ def main() -> int:
             "gate_proj", "up_proj", "down_proj",
         ],
     )
+    # TRAIN_SMOKE=1 does a fast few-step run to validate the pipeline mechanics
+    # (loads model, trains, saves, exports) without waiting for a full fine-tune.
+    smoke = bool(os.environ.get("TRAIN_SMOKE"))
     out_dir = os.path.join(data_dir, "lora_adapter")
     cfg = SFTConfig(
         output_dir=out_dir,
-        num_train_epochs=3,
+        num_train_epochs=1 if smoke else 3,
+        max_steps=8 if smoke else -1,
         per_device_train_batch_size=1,
         gradient_accumulation_steps=8,
         learning_rate=2e-4,
         logging_steps=5,
-        save_strategy="epoch",
+        save_strategy="no" if smoke else "epoch",
         bf16=use_cuda,
         max_length=8192,
     )
+    if smoke:
+        print("TRAIN_SMOKE: fast mechanics-validation run (8 steps) — not a quality fine-tune.")
     trainer = SFTTrainer(
         model=model, args=cfg, train_dataset=ds, peft_config=lora, processing_class=tok
     )

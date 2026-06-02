@@ -398,6 +398,67 @@ def _check_recursion(root: str) -> tuple[bool, str]:
     )
 
 
+def _check_rle(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "rle",
+        "from rle import encode, decode\n"
+        "assert encode('aaabbc') == 'a3b2c1'\n"
+        "assert decode('a3b2c1') == 'aaabbc'\n"
+        "for x in ('', 'x', 'zzzzz', 'abcabc'):\n"
+        "    assert decode(encode(x)) == x, x\n"
+        "print('RLE_OK')\n",
+        "RLE_OK",
+    )
+
+
+def _check_sieve(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "sieve",
+        "from sieve import primes_up_to\n"
+        "assert primes_up_to(30) == [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]\n"
+        "assert len(primes_up_to(100)) == 25\n"
+        "assert primes_up_to(1) == []\n"
+        "print('SIEVE_OK')\n",
+        "SIEVE_OK",
+    )
+
+
+def _check_balanced(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "balanced",
+        "from balanced import is_balanced\n"
+        "assert is_balanced('(a[b]{c})') is True\n"
+        "assert is_balanced('(]') is False\n"
+        "assert is_balanced('((') is False\n"
+        "assert is_balanced('') is True\n"
+        "print('BAL_OK')\n",
+        "BAL_OK",
+    )
+
+
+def _check_matrix(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "matrix",
+        "from matrix import transpose, matmul\n"
+        "assert transpose([[1, 2, 3], [4, 5, 6]]) == [[1, 4], [2, 5], [3, 6]]\n"
+        "assert matmul([[1, 2], [3, 4]], [[5, 6], [7, 8]]) == [[19, 22], [43, 50]]\n"
+        "print('MAT_OK')\n",
+        "MAT_OK",
+    )
+
+
+def _check_workdays(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "workdays",
+        "from workdays import business_days\n"
+        "assert business_days('2026-06-01', '2026-06-05') == 5\n"
+        "assert business_days('2026-06-07', '2026-06-08') == 1\n"
+        "assert business_days('2026-06-06', '2026-06-07') == 0\n"
+        "print('WD_OK')\n",
+        "WD_OK",
+    )
+
+
 SCENARIOS: list[Scenario] = [
     Scenario(
         name="multifile_cli",
@@ -665,6 +726,56 @@ SCENARIOS: list[Scenario] = [
         ),
         check=_check_recursion,
         tags=["recursion"],
+    ),
+    Scenario(
+        name="run_length_codec",
+        goal=(
+            "Write rle.py with encode(s) producing run-length encoding ('aaabbc' -> 'a3b2c1') and "
+            "decode(r) that inverts it. Verify encode('aaabbc') == 'a3b2c1' and that "
+            "decode(encode(x)) == x for several strings (including the empty string)."
+        ),
+        check=_check_rle,
+        tags=["strings"],
+    ),
+    Scenario(
+        name="sieve_primes",
+        goal=(
+            "Write sieve.py with primes_up_to(n) returning the sorted list of all primes <= n, "
+            "using the Sieve of Eratosthenes. Verify primes_up_to(30) is the first 10 primes "
+            "and len(primes_up_to(100)) == 25."
+        ),
+        check=_check_sieve,
+        tags=["number-theory", "algorithm"],
+    ),
+    Scenario(
+        name="balanced_parens",
+        goal=(
+            "Write balanced.py with is_balanced(s) returning True iff the brackets ()[]{} in s are "
+            "correctly matched and nested (other characters ignored). Verify '(a[b]{c})' is True, "
+            "'(]' and '((' are False, and '' is True."
+        ),
+        check=_check_balanced,
+        tags=["stack"],
+    ),
+    Scenario(
+        name="matrix_ops",
+        goal=(
+            "Write matrix.py with transpose(m) and matmul(a, b) for 2D lists of numbers. Verify "
+            "transpose([[1,2,3],[4,5,6]]) == [[1,4],[2,5],[3,6]] and "
+            "matmul([[1,2],[3,4]],[[5,6],[7,8]]) == [[19,22],[43,50]]."
+        ),
+        check=_check_matrix,
+        tags=["matrix", "algorithm"],
+    ),
+    Scenario(
+        name="business_days",
+        goal=(
+            "Write workdays.py with business_days(start_iso, end_iso) returning the count of "
+            "weekdays (Mon-Fri) between two 'YYYY-MM-DD' dates inclusive (use datetime). Verify "
+            "business_days('2026-06-01','2026-06-05') == 5 and a weekend-only range == 0."
+        ),
+        check=_check_workdays,
+        tags=["datetime"],
     ),
 ]
 
