@@ -182,6 +182,91 @@ def _check_todo_cli(root: str) -> tuple[bool, str]:
     return ok, f"list rc={rc} out={out.strip()[:160]}"
 
 
+def _verify(root: str, name: str, code: str, marker: str) -> tuple[bool, str]:
+    """Write an independent verification script, run it, and require a success marker."""
+    _write(root, f"_verify_{name}.py", code)
+    rc, out = _run([_py(), f"_verify_{name}.py"], root)
+    return (rc == 0 and marker in out), f"rc={rc} out={out.strip()[-160:]}"
+
+
+def _check_expr(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "expr",
+        "from expr import evaluate\n"
+        "assert abs(evaluate('2+3*4-(1+1)') - 12) < 1e-9\n"
+        "assert abs(evaluate('10/2/5') - 1) < 1e-9\n"
+        "assert abs(evaluate('(1+2)*(3+4)') - 21) < 1e-9\n"
+        "print('EXPR_OK')\n",
+        "EXPR_OK",
+    )
+
+
+def _check_dijkstra(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "dijkstra",
+        "from graph import shortest_path\n"
+        "g = {'A': [('B', 1), ('C', 4)], 'B': [('C', 2), ('D', 5)], "
+        "'C': [('D', 1)], 'D': []}\n"
+        "assert shortest_path(g, 'A', 'D') == 4\n"
+        "print('DIJKSTRA_OK')\n",
+        "DIJKSTRA_OK",
+    )
+
+
+def _check_counter(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "counter",
+        "import threading\n"
+        "from counter import Counter\n"
+        "c = Counter()\n"
+        "def work():\n"
+        "    for _ in range(1000):\n        c.increment()\n"
+        "ts = [threading.Thread(target=work) for _ in range(10)]\n"
+        "[t.start() for t in ts]\n[t.join() for t in ts]\n"
+        "assert c.value == 10000, c.value\n"
+        "print('COUNTER_OK')\n",
+        "COUNTER_OK",
+    )
+
+
+def _check_package_api(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "pkg",
+        "from mathpkg import add, sub, power, factorial\n"
+        "assert add(2, 3) == 5 and sub(5, 2) == 3\n"
+        "assert power(2, 10) == 1024 and factorial(5) == 120\n"
+        "print('PKG_OK')\n",
+        "PKG_OK",
+    )
+
+
+def _setup_refactor(root: str) -> None:
+    _write(
+        root, "shapes.py",
+        "def circle_area(r):\n    return 3.141592653589793 * r * r\n\n\n"
+        "def cylinder_volume(r, h):\n    return 3.141592653589793 * r * r * h\n\n\n"
+        "def sphere_volume(r):\n    return (4.0 / 3.0) * 3.141592653589793 * r * r * r\n",
+    )
+    _write(
+        root, "test_shapes.py",
+        "from shapes import circle_area, cylinder_volume, sphere_volume\n\n\n"
+        "def test_circle():\n    assert abs(circle_area(2) - 12.566370614359172) < 1e-9\n\n\n"
+        "def test_cylinder():\n"
+        "    assert abs(cylinder_volume(2, 3) - 37.69911184307752) < 1e-9\n\n\n"
+        "def test_sphere():\n    assert abs(sphere_volume(3) - 113.09733552923255) < 1e-9\n",
+    )
+
+
+def _setup_mutable_bug(root: str) -> None:
+    acc = "def append_item(item, bucket=[]):\n    bucket.append(item)\n    return bucket\n"
+    _write(root, "acc.py", acc)
+    _write(
+        root, "test_bug.py",
+        "from acc import append_item\n\n\n"
+        "def test_isolated():\n    assert append_item(1) == [1]\n    assert append_item(2) == [2]\n",
+    )
+
+
 SCENARIOS: list[Scenario] = [
     Scenario(
         name="multifile_cli",
@@ -280,6 +365,70 @@ SCENARIOS: list[Scenario] = [
         ),
         check=_check_todo_cli,
         tags=["multi-file", "cli", "state"],
+    ),
+    Scenario(
+        name="expr_parser",
+        goal=(
+            "Write expr.py with a function evaluate(expr: str) -> float that evaluates arithmetic "
+            "expressions supporting + - * / and parentheses with correct operator precedence, "
+            "implemented as a recursive-descent parser (do NOT use Python's eval). Verify it "
+            "handles nested parentheses and precedence by running it."
+        ),
+        check=_check_expr,
+        tags=["parsing", "hard"],
+    ),
+    Scenario(
+        name="dijkstra",
+        goal=(
+            "Write graph.py with shortest_path(graph, start, end) that returns the minimum total "
+            "weight from start to end using Dijkstra's algorithm. graph is a dict mapping a node "
+            "to a list of (neighbor, weight) tuples. Verify on a sample graph by running it."
+        ),
+        check=_check_dijkstra,
+        tags=["algorithm", "hard"],
+    ),
+    Scenario(
+        name="threadsafe_counter",
+        goal=(
+            "Write counter.py with a thread-safe Counter class exposing increment() and a `value` "
+            "property, correct under concurrent access from many threads (use a lock). Verify by "
+            "running 10 threads doing 1000 increments each and confirming value == 10000."
+        ),
+        check=_check_counter,
+        tags=["concurrency", "hard"],
+    ),
+    Scenario(
+        name="refactor_keep_green",
+        goal=(
+            "shapes.py works and test_shapes.py passes, but the circle-area math (pi*r*r) is "
+            "duplicated across the functions. Refactor shapes.py to define that once and reuse "
+            "it WITHOUT changing any behavior; all tests in test_shapes.py must still pass."
+        ),
+        check=_pytest_green,
+        setup=_setup_refactor,
+        tags=["refactor", "regression"],
+    ),
+    Scenario(
+        name="mutable_default_bug",
+        goal=(
+            "test_bug.py fails. The bug in acc.py is a classic Python pitfall (a mutable default "
+            "argument shared across calls). Fix acc.py so each call starts fresh and the tests "
+            "pass. Run pytest to confirm."
+        ),
+        check=_pytest_green,
+        setup=_setup_mutable_bug,
+        tags=["debug", "subtle"],
+    ),
+    Scenario(
+        name="package_api",
+        goal=(
+            "Create a package mathpkg/ with mathpkg/basic.py (add, sub), mathpkg/advanced.py "
+            "(power(base, exp), factorial(n)), and mathpkg/__init__.py that re-exports all four so "
+            "`from mathpkg import add, sub, power, factorial` works. Add test_pkg.py importing from "
+            "mathpkg and testing each, and run pytest to confirm."
+        ),
+        check=_check_package_api,
+        tags=["multi-file", "packaging", "hard"],
     ),
 ]
 
