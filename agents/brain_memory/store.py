@@ -2,22 +2,24 @@
 
 from brain_core.metrics import Timer, track_memory_operation
 from brain_core.tracing import traced
-from brain_memory.episodic import EpisodicMemory
+from brain_memory.memory_native import (
+    make_episodic_memory,
+    make_procedural_memory,
+    make_semantic_memory,
+    make_working_memory,
+)
 from brain_memory.models import Episode, Fact, MemoryType, Skill
-from brain_memory.procedural import ProceduralMemory
-from brain_memory.semantic import SemanticMemory
-from brain_memory.working import WorkingMemory
 
 
 class MemoryStore:
     """Unified interface to the multi-layer memory system."""
 
     def __init__(self) -> None:
-        """Initialize all memory layers."""
-        self.working = WorkingMemory()
-        self.episodic = EpisodicMemory()
-        self.semantic = SemanticMemory()
-        self.procedural = ProceduralMemory()
+        """Initialize all memory layers (native embedded stores when configured)."""
+        self.working = make_working_memory()
+        self.episodic = make_episodic_memory()
+        self.semantic = make_semantic_memory()
+        self.procedural = make_procedural_memory()
 
     @traced(name="memory_store_episode")
     async def store_episode(self, episode: Episode) -> str:

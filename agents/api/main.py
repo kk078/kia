@@ -110,10 +110,10 @@ async def get_status() -> dict[str, Any]:
 @app.post("/api/v1/memory/episodes")
 async def store_episode(content: str, context: dict[str, Any] | None = None) -> dict[str, str]:
     """Store an episode in episodic memory."""
-    from brain_memory.episodic import EpisodicMemory
+    from brain_memory.memory_native import make_episodic_memory
 
     try:
-        em = EpisodicMemory()
+        em = make_episodic_memory()
         episode = Episode(content=content, context=context or {})
         episode_id = await em.store_episode(episode)
         await em.close()
@@ -125,10 +125,10 @@ async def store_episode(content: str, context: dict[str, Any] | None = None) -> 
 @app.get("/api/v1/memory/episodes")
 async def retrieve_episodes(query: str, limit: int = 10) -> list[dict[str, Any]]:
     """Retrieve episodes from episodic memory."""
-    from brain_memory.episodic import EpisodicMemory
+    from brain_memory.memory_native import make_episodic_memory
 
     try:
-        em = EpisodicMemory()
+        em = make_episodic_memory()
         episodes = await em.retrieve_episodes(query, limit)
         await em.close()
         return [ep.model_dump() for ep in episodes]
@@ -141,10 +141,10 @@ async def store_fact(
     subject: str, predicate: str, object: str, confidence: float = 1.0
 ) -> dict[str, str]:
     """Store a fact in semantic memory."""
-    from brain_memory.semantic import SemanticMemory
+    from brain_memory.memory_native import make_semantic_memory
 
     try:
-        sm = SemanticMemory()
+        sm = make_semantic_memory()
         fact = Fact(subject=subject, predicate=predicate, object=object, confidence=confidence)
         fact_id = await sm.store_fact(fact)
         await sm.close()
@@ -161,10 +161,10 @@ async def query_facts(
     limit: int = 10,
 ) -> list[dict[str, Any]]:
     """Query facts from semantic memory."""
-    from brain_memory.semantic import SemanticMemory
+    from brain_memory.memory_native import make_semantic_memory
 
     try:
-        sm = SemanticMemory()
+        sm = make_semantic_memory()
         facts = await sm.query_facts(
             subject=subject, predicate=predicate, object=object, limit=limit
         )
@@ -177,10 +177,10 @@ async def query_facts(
 @app.post("/api/v1/memory/skills")
 async def store_skill(name: str, description: str, steps: list[str]) -> dict[str, str]:
     """Store a skill in procedural memory."""
-    from brain_memory.procedural import ProceduralMemory
+    from brain_memory.memory_native import make_procedural_memory
 
     try:
-        pm = ProceduralMemory()
+        pm = make_procedural_memory()
         skill = Skill(name=name, description=description, steps=steps)
         skill_id = await pm.store_skill(skill)
         await pm.close()
@@ -192,10 +192,10 @@ async def store_skill(name: str, description: str, steps: list[str]) -> dict[str
 @app.get("/api/v1/memory/skills")
 async def list_skills() -> list[dict[str, Any]]:
     """List all skills from procedural memory."""
-    from brain_memory.procedural import ProceduralMemory
+    from brain_memory.memory_native import make_procedural_memory
 
     try:
-        pm = ProceduralMemory()
+        pm = make_procedural_memory()
         skills = await pm.list_skills()
         await pm.close()
         return [s.model_dump() for s in skills]

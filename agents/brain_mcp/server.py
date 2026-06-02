@@ -11,9 +11,8 @@ from brain_core.llm import LLMRouter
 from brain_core.router import TaskRouter
 from brain_core.types import Context
 from brain_knowledge.rag import RAGEngine
-from brain_memory.episodic import EpisodicMemory
+from brain_memory.memory_native import make_episodic_memory, make_semantic_memory
 from brain_memory.models import Episode, Fact
-from brain_memory.semantic import SemanticMemory
 from brain_orchestrator.planner import Orchestrator
 
 server = Server("secondary-brain")
@@ -145,7 +144,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
     """Handle tool calls."""
     try:
         if name == "memory_store_episode":
-            em = EpisodicMemory()
+            em = make_episodic_memory()
             episode = Episode(
                 content=arguments["content"],
                 context=arguments.get("context", {}),
@@ -155,14 +154,14 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             return [TextContent(type="text", text=f"Stored episode: {episode_id}")]
 
         elif name == "memory_retrieve_episodes":
-            em = EpisodicMemory()
+            em = make_episodic_memory()
             episodes = await em.retrieve_episodes(arguments["query"], arguments.get("limit", 10))
             await em.close()
             results = [f"- {ep.content[:100]}... (ID: {ep.id})" for ep in episodes]
             return [TextContent(type="text", text="\n".join(results))]
 
         elif name == "memory_store_fact":
-            sm = SemanticMemory()
+            sm = make_semantic_memory()
             fact = Fact(
                 subject=arguments["subject"],
                 predicate=arguments["predicate"],
@@ -174,7 +173,7 @@ async def call_tool(name: str, arguments: dict[str, Any]) -> list[TextContent]:
             return [TextContent(type="text", text=f"Stored fact: {fact_id}")]
 
         elif name == "memory_query_facts":
-            sm = SemanticMemory()
+            sm = make_semantic_memory()
             facts = await sm.query_facts(
                 subject=arguments.get("subject"),
                 predicate=arguments.get("predicate"),
