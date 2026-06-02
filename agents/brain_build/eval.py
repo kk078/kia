@@ -268,6 +268,79 @@ def _setup_mutable_bug(root: str) -> None:
     )
 
 
+def _check_sqlite_crud(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "db",
+        "import os\n"
+        "from db import init_db, add_user, get_user, update_age\n"
+        "p = 'users.db'\n"
+        "if os.path.exists(p):\n    os.remove(p)\n"
+        "init_db(p)\nadd_user(p, 'alice', 30)\nadd_user(p, 'bob', 25)\n"
+        "assert get_user(p, 'alice') == ('alice', 30)\n"
+        "update_age(p, 'alice', 31)\n"
+        "assert get_user(p, 'alice') == ('alice', 31)\n"
+        "assert get_user(p, 'nobody') is None\n"
+        "print('DB_OK')\n",
+        "DB_OK",
+    )
+
+
+def _check_regex(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "extract",
+        "from extract import extract_emails\n"
+        "t = 'reach a@b.com, x@y.org and a@b.com; bad@, ok.name+tag@sub.domain.co end'\n"
+        "r = extract_emails(t)\n"
+        "assert 'a@b.com' in r and 'x@y.org' in r and 'ok.name+tag@sub.domain.co' in r\n"
+        "assert r == sorted(set(r))\n"
+        "print('RE_OK')\n",
+        "RE_OK",
+    )
+
+
+def _check_memoize(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "memo",
+        "from memo import memoize\n"
+        "calls = {'n': 0}\n"
+        "@memoize\n"
+        "def slow(x):\n    calls['n'] += 1\n    return x * x\n"
+        "assert slow(3) == 9 and slow(3) == 9 and slow(4) == 16\n"
+        "assert calls['n'] == 2, calls['n']\n"
+        "print('MEMO_OK')\n",
+        "MEMO_OK",
+    )
+
+
+def _check_toposort(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "toposort",
+        "from toposort import topo_sort\n"
+        "order = topo_sort({'a': [], 'b': ['a'], 'c': ['a', 'b'], 'd': ['c']})\n"
+        "pos = {n: i for i, n in enumerate(order)}\n"
+        "assert pos['a'] < pos['b'] < pos['c'] < pos['d']\n"
+        "try:\n    topo_sort({'x': ['y'], 'y': ['x']})\n"
+        "    raise AssertionError('no cycle error')\n"
+        "except ValueError:\n    pass\n"
+        "print('TOPO_OK')\n",
+        "TOPO_OK",
+    )
+
+
+def _check_bank(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "bank",
+        "from account import BankAccount\n"
+        "a = BankAccount()\n"
+        "a.deposit(50)\na.withdraw(120)\n"
+        "assert a.balance == -70\n"
+        "try:\n    a.withdraw(50)\n    raise AssertionError('overdraft not enforced')\n"
+        "except ValueError:\n    pass\n"
+        "print('BANK_OK')\n",
+        "BANK_OK",
+    )
+
+
 SCENARIOS: list[Scenario] = [
     Scenario(
         name="multifile_cli",
@@ -430,6 +503,59 @@ SCENARIOS: list[Scenario] = [
         ),
         check=_check_package_api,
         tags=["multi-file", "packaging", "hard"],
+    ),
+    Scenario(
+        name="sqlite_crud",
+        goal=(
+            "Write db.py using the stdlib sqlite3 module with: init_db(path) creating a 'users' "
+            "table (id INTEGER PRIMARY KEY, name TEXT, age INTEGER); add_user(path, name, age); "
+            "get_user(path, name) returning a (name, age) tuple or None; and update_age(path, "
+            "name, age). Verify by running it end to end."
+        ),
+        check=_check_sqlite_crud,
+        tags=["stdlib", "db", "hard"],
+    ),
+    Scenario(
+        name="regex_extract",
+        goal=(
+            "Write extract.py with extract_emails(text) that returns a sorted list of the unique "
+            "email addresses found in text, using the re module. Verify it on a sample with "
+            "duplicates and tricky addresses."
+        ),
+        check=_check_regex,
+        tags=["regex", "stdlib"],
+    ),
+    Scenario(
+        name="memoize_decorator",
+        goal=(
+            "Write memo.py with a decorator @memoize that caches a function's return values by its "
+            "positional arguments so repeated calls with the same args don't recompute. Verify "
+            "that the wrapped function body only runs once per distinct argument."
+        ),
+        check=_check_memoize,
+        tags=["decorator", "hard"],
+    ),
+    Scenario(
+        name="topological_sort",
+        goal=(
+            "Write toposort.py with topo_sort(deps) where deps maps each node to the list of nodes "
+            "it depends on; return a valid topological order (dependencies before dependents) and "
+            "raise ValueError if there is a cycle. Verify on a DAG and on a cyclic graph."
+        ),
+        check=_check_toposort,
+        tags=["algorithm", "hard"],
+    ),
+    Scenario(
+        name="bank_account_rules",
+        goal=(
+            "Write account.py with a BankAccount class: deposit(amount), withdraw(amount), and a "
+            "balance property. Withdrawals may take the balance down to -100 (a $100 overdraft) "
+            "but any withdrawal that would go below -100 must raise ValueError. Add "
+            "test_account.py with pytest tests for deposit, an allowed overdraft, and a rejected "
+            "over-limit withdrawal, and run pytest."
+        ),
+        check=_check_bank,
+        tags=["state", "rules", "hard"],
     ),
 ]
 

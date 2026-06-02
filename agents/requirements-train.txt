@@ -1,0 +1,11 @@
+# Extra dependencies for the LoRA fine-tune pipeline (brain_train/).
+# These are NOT part of KIA's runtime deps (kept out of pyproject so `uv sync` and CI
+# stay lean). Install into the venv only when you actually want to train:
+#
+#   uv pip install --python agents/.venv -r agents/requirements-train.txt
+#
+# torch + transformers are already installed as part of the main project; the rest:
+peft>=0.11
+trl>=0.12
+datasets>=2.19
+accelerate>=0.30
