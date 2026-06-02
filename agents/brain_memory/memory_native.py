@@ -36,6 +36,9 @@ class EpisodicLike(Protocol):
     async def retrieve_episodes(self, query: str, limit: int = 10) -> list[Episode]:
         ...
 
+    async def retrieve_recent(self, limit: int = 10) -> list[Episode]:
+        ...
+
     async def close(self) -> None:
         ...
 
@@ -53,6 +56,15 @@ class SemanticLike(Protocol):
         object: str | None = None,
         limit: int = 10,
     ) -> list[Fact]:
+        ...
+
+    async def get_entity(self, entity_type: str, entity_id: str) -> dict[str, Any] | None:
+        ...
+
+    async def store_entity(self, entity_type: str, entity_id: str, data: dict[str, Any]) -> None:
+        ...
+
+    async def get_patterns(self) -> list[dict[str, Any]]:
         ...
 
     async def close(self) -> None:
@@ -113,6 +125,10 @@ def _connect() -> sqlite3.Connection:
         "CREATE TABLE IF NOT EXISTS skills ("
         "id TEXT PRIMARY KEY, name TEXT, description TEXT, steps TEXT, "
         "success_rate REAL, usage_count INTEGER, created_at REAL, metadata TEXT)"
+    )
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS entities ("
+        "type TEXT, name TEXT, data TEXT, PRIMARY KEY (type, name))"
     )
     return conn
 
@@ -227,6 +243,48 @@ class SqliteSemanticMemory:
                 )
                 for r in rows
             ]
+
+        try:
+            return await asyncio.to_thread(_do)
+        except Exception:  # noqa: BLE001
+            return []
+
+    async def get_entity(self, entity_type: str, entity_id: str) -> dict[str, Any] | None:
+        """Fetch a stored entity's data dict, or None."""
+
+        def _do() -> dict[str, Any] | None:
+            with _connect() as c:
+                row = c.execute(
+                    "SELECT data FROM entities WHERE type=? AND name=?", (entity_type, entity_id)
+                ).fetchone()
+            if not row or not row[0]:
+                return None
+            data: dict[str, Any] = json.loads(row[0])
+            return data
+
+        return await asyncio.to_thread(_do)
+
+    async def store_entity(self, entity_type: str, entity_id: str, data: dict[str, Any]) -> None:
+        """Create/replace an entity's data dict."""
+
+        def _do() -> None:
+            with _connect() as c:
+                c.execute(
+                    "INSERT OR REPLACE INTO entities VALUES (?,?,?)",
+                    (entity_type, entity_id, json.dumps(data)),
+                )
+
+        await asyncio.to_thread(_do)
+
+    async def get_patterns(self) -> list[dict[str, Any]]:
+        """Return entities stored under the 'pattern' type."""
+
+        def _do() -> list[dict[str, Any]]:
+            with _connect() as c:
+                rows = c.execute(
+                    "SELECT data FROM entities WHERE type='pattern' LIMIT 10"
+                ).fetchall()
+            return [json.loads(r[0]) for r in rows if r[0]]
 
         try:
             return await asyncio.to_thread(_do)
