@@ -75,6 +75,15 @@ def _resolve_model() -> tuple[str, dict[str, Any]]:
     return f"{settings.default_oss_provider}/{settings.default_oss_model}", {}
 
 
+def _resolve_escalate() -> tuple[str, dict[str, Any]]:
+    """Resolve the stronger escalation model (e.g. Claude), or ('', {}) if disabled.
+
+    Provider-prefixed routes like ``anthropic/claude-...`` authenticate via the provider's
+    env key (ANTHROPIC_API_KEY) through litellm, so no extra kwargs are needed.
+    """
+    return settings.build_escalate_model.strip(), {}
+
+
 def _extract_json_object(text: str) -> dict[str, Any] | None:
     """Pull the first balanced JSON object out of the model's reply, robustly."""
     s = text.strip()
@@ -164,8 +173,31 @@ class BuildAgent:
     """Runs (and resumes) the ReAct build loop for a session."""
 
     def __init__(self) -> None:
-        """Resolve the driver model once."""
+        """Resolve the default driver model and the stronger escalation model."""
         self.model, self.kwargs = _resolve_model()
+        self.escalate_model, self.escalate_kwargs = _resolve_escalate()
+
+    def _escalate(self, sid: str, s: dict[str, Any], step_no: int) -> dict[str, Any] | None:
+        """Switch the session to the stronger model once the default has stalled.
+
+        Returns an ``escalate`` event to emit, or None if not applicable.
+        """
+        if s.get("escalated") or not self.escalate_model:
+            return None
+        blocks = int(s.get("finish_blocks") or 0)
+        fails = int(s.get("consec_fail") or 0)
+        if blocks < settings.build_escalate_after and fails < 5:
+            return None
+        s["model"] = self.escalate_model
+        s["kwargs"] = self.escalate_kwargs
+        s["escalated"] = True
+        self._record(
+            sid, "user",
+            "NOTE: escalating to a stronger model. Do NOT trust earlier claims of completion — "
+            "use list_dir and read_file to verify what is ACTUALLY on disk, create any missing "
+            "files, run the program/tests to confirm, and only then finish.",
+        )
+        return {"type": "escalate", "step": step_no, "model": self.escalate_model}
 
     async def _execute(
         self, tools: BuildTools, tool: str, args: dict[str, Any]
@@ -223,8 +255,11 @@ class BuildAgent:
             s["step"] += 1
             step_no = s["step"]
 
+            model = str(s.get("model") or self.model)
+            sk = s.get("kwargs")
+            call_kwargs = sk if isinstance(sk, dict) else self.kwargs
             try:
-                resp = await LLMRouter().complete(self.model, s["messages"], **self.kwargs)
+                resp = await LLMRouter().complete(model, s["messages"], **call_kwargs)
                 reply = str(resp.choices[0].message.content or "")
             except Exception as e:  # noqa: BLE001
                 yield {"type": "error", "content": f"model error: {type(e).__name__}: {e}"}
@@ -256,6 +291,9 @@ class BuildAgent:
                 blocks = int(s.get("finish_blocks") or 0)
                 if s.get("last_cmd_ok") is not True and blocks < 3:
                     s["finish_blocks"] = blocks + 1
+                    esc = self._escalate(sid, s, step_no)
+                    if esc is not None:
+                        yield esc
                     self._record(
                         sid, "user",
                         "OBSERVATION: finish REJECTED. You have not verified success since your "
@@ -302,10 +340,15 @@ class BuildAgent:
             # mutation invalidates it (you must re-verify after changing code).
             if tool == "run_command":
                 s["last_cmd_ok"] = ok
+                s["consec_fail"] = 0 if ok else int(s.get("consec_fail") or 0) + 1
             elif tool in ("write_file", "edit_file"):
                 s["last_cmd_ok"] = None
             self._record(sid, "user", f"OBSERVATION:\n{obs}")
             yield {"type": "observation", "step": step_no, "ok": ok, "content": obs}
+            # Escalate to the stronger tier if the default keeps failing commands.
+            esc = self._escalate(sid, s, step_no)
+            if esc is not None:
+                yield esc
 
     async def resume(self, sid: str, approve: bool) -> AsyncGenerator[dict[str, Any], None]:
         """Apply the approval decision to the pending action, then continue the loop."""

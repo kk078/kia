@@ -111,6 +111,7 @@
                     <button class="kia-btn-soft" style="padding:.4rem .8rem" @click="decideBuild(msg.build, false)">Reject</button>
                   </div>
                 </div>
+                <div v-else-if="e.type === 'escalate'" class="kia-evt-escalate"><i class="fas fa-arrow-up-right-dots"></i> Escalated to a stronger model: <code>{{ e.model }}</code></div>
                 <div v-else-if="e.type === 'finish'" class="kia-evt-finish"><i class="fas fa-circle-check"></i> {{ e.summary }}</div>
                 <div v-else-if="e.type === 'limit'" class="kia-evt-warn">{{ e.content }}</div>
                 <div v-else-if="e.type === 'error'" class="kia-evt-err">{{ e.content }}</div>
@@ -642,6 +643,9 @@ onMounted(async () => {
 .kia-evt-approval-head { color:#8a5a00; font-weight:600; margin-bottom:.4rem; }
 .kia-evt-finish { color:#1e7a34; font-weight:600; margin-top:.4rem; }
 .kia-evt-finish i { margin-right:.3rem; }
+.kia-evt-escalate { color:var(--kia-blue-deep); font-weight:600; }
+.kia-evt-escalate i { margin-right:.3rem; }
+.kia-evt-escalate code { background:var(--fill); }
 .kia-evt-warn { color:#8a5a00; }
 .kia-evt-err { color:#a01919; }
 .kia-build-status { color:var(--text-3); font-size:.82rem; margin-top:.4rem; }

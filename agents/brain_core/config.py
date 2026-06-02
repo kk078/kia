@@ -116,6 +116,11 @@ class Settings(BaseSettings):
     # Autonomous build agent: default working directory the agent is jailed to.
     build_root: str = ""  # empty -> C:\dev on Windows, ~ elsewhere
 
+    # Build agent escalation tier: switch to a stronger model when the default stalls
+    # (the finish-gate keeps rejecting, or commands thrash). Empty disables escalation.
+    build_escalate_model: str = ""  # e.g. "anthropic/claude-opus-4-6" (uses ANTHROPIC_API_KEY)
+    build_escalate_after: int = 2   # finish-gate rejections before escalating
+
     # Connectors / MCP client layer.
     connectors_enabled: bool = False
     connectors_config: str = "/app/data/connectors.json"
