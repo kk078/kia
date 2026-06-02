@@ -52,8 +52,9 @@ How to work well on COMPLEX tasks:
    run_command and read the output. Exit code AND output are the source of truth.
 5. RECOVER. If a command fails, read the error, state a hypothesis in your thought, fix it,
    and re-run. Never repeat the same failing action unchanged.
-6. REFLECT BEFORE FINISH. Only call finish after a run_command has demonstrated the goal is
-   met. In the summary, cite the concrete evidence (the command and its key output).
+6. REFLECT BEFORE FINISH. finish is REJECTED unless a command has passed (exit 0) since your
+   last file change — a confident summary is NOT evidence. Actually run the program or its
+   tests, see it pass, THEN finish and cite the command + its key output in the summary.
 
 Safety: destructive/system commands (delete, install, registry/service, force-push) pause for
 human approval — prefer safe, idempotent commands. Paths are confined to the working directory."""
@@ -250,6 +251,23 @@ class BuildAgent:
                 yield {"type": "thought", "step": step_no, "content": thought}
 
             if tool == "finish":
+                # Verification gate: refuse to finish unless a command has PASSED since the
+                # last file change. A confident summary is not evidence — a green run is.
+                blocks = int(s.get("finish_blocks") or 0)
+                if s.get("last_cmd_ok") is not True and blocks < 3:
+                    s["finish_blocks"] = blocks + 1
+                    self._record(
+                        sid, "user",
+                        "OBSERVATION: finish REJECTED. You have not verified success since your "
+                        "last change. Do NOT claim completion — actually run a command that "
+                        "exercises the deliverable (run the program or its tests) and shows it "
+                        "works (exit code 0). Then call finish.",
+                    )
+                    yield {
+                        "type": "observation", "step": step_no, "ok": False,
+                        "content": "finish blocked — run a passing verification command first",
+                    }
+                    continue
                 summary = str(args.get("summary", "Build complete.")).strip()
                 _capture_trace(s, summary)
                 yield {"type": "finish", "step": step_no, "summary": summary}
@@ -280,6 +298,12 @@ class BuildAgent:
 
             obs, ok = await self._execute(tools, tool, args)
             obs = _cap(obs)
+            # Track verification state: a passing command satisfies the finish gate; any file
+            # mutation invalidates it (you must re-verify after changing code).
+            if tool == "run_command":
+                s["last_cmd_ok"] = ok
+            elif tool in ("write_file", "edit_file"):
+                s["last_cmd_ok"] = None
             self._record(sid, "user", f"OBSERVATION:\n{obs}")
             yield {"type": "observation", "step": step_no, "ok": ok, "content": obs}
 
@@ -298,6 +322,7 @@ class BuildAgent:
         if approve:
             obs, ok = await self._execute(tools, str(pending["tool"]), dict(pending["args"]))
             obs = _cap(obs)
+            s["last_cmd_ok"] = ok  # the approved action is always a run_command
             self._record(sid, "user", f"OBSERVATION:\n{obs}")
             yield {
                 "type": "observation", "step": s["step"], "ok": ok,
