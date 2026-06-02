@@ -115,6 +115,73 @@ def _check_fib(root: str) -> tuple[bool, str]:
     return (rc == 0 and has_fib), f"pytest rc={rc} fib.py={has_fib} tail={out.strip()[-140:]}"
 
 
+def _pytest_green(root: str) -> tuple[bool, str]:
+    rc, out = _run([_py(), "-m", "pytest", "-q"], root, timeout=120)
+    return rc == 0, f"pytest rc={rc} tail={out.strip()[-160:]}"
+
+
+def _setup_cross_file_bug(root: str) -> None:
+    _write(root, "shop/__init__.py", "")
+    _write(root, "shop/pricing.py", "def line_total(price, qty):\n    return price + qty  # BUG\n")
+    _write(
+        root, "shop/cart.py",
+        "from shop.pricing import line_total\n\n\n"
+        "def cart_total(items):\n    return sum(line_total(p, q) for p, q in items)\n",
+    )
+    _write(
+        root, "test_shop.py",
+        "from shop.cart import cart_total\n\n\n"
+        "def test_cart_total():\n    assert cart_total([(10, 2), (5, 3)]) == 35\n",
+    )
+
+
+def _check_lru(root: str) -> tuple[bool, str]:
+    verify = (
+        "from lru import LRUCache\n"
+        "c = LRUCache(2)\n"
+        "c.put(1, 1)\nc.put(2, 2)\n"
+        "assert c.get(1) == 1\n"
+        "c.put(3, 3)\n"
+        "assert c.get(2) == -1, 'LRU eviction failed'\n"
+        "assert c.get(3) == 3\n"
+        "print('LRU_OK')\n"
+    )
+    _write(root, "_verify_lru.py", verify)
+    rc, out = _run([_py(), "_verify_lru.py"], root)
+    return (rc == 0 and "LRU_OK" in out), f"rc={rc} out={out.strip()[-160:]}"
+
+
+def _setup_feature_add(root: str) -> None:
+    calc = "def add(a, b):\n    return a + b\n\n\ndef sub(a, b):\n    return a - b\n"
+    _write(root, "calc.py", calc)
+    _write(
+        root, "test_calc.py",
+        "from calc import add, sub\n\n\n"
+        "def test_add():\n    assert add(2, 3) == 5\n\n\n"
+        "def test_sub():\n    assert sub(5, 2) == 3\n",
+    )
+
+
+def _check_feature_add(root: str) -> tuple[bool, str]:
+    rc, _ = _run([_py(), "-m", "pytest", "-q"], root, timeout=120)
+    rc2, out2 = _run(
+        [_py(), "-c", "import calc; assert calc.power(2, 10) == 1024; print('POW_OK')"], root
+    )
+    ok = rc == 0 and rc2 == 0 and "POW_OK" in out2
+    return ok, f"pytest rc={rc}; power rc={rc2} {out2.strip()[-80:]}"
+
+
+def _check_todo_cli(root: str) -> tuple[bool, str]:
+    cli = os.path.join(root, "todo", "cli.py")
+    for a in (["add", "alpha"], ["add", "beta"], ["done", "1"]):
+        rc, out = _run([_py(), cli, *a], root)
+        if rc != 0:
+            return False, f"`cli {' '.join(a)}` rc={rc} {out.strip()[-100:]}"
+    rc, out = _run([_py(), cli, "list"], root)
+    ok = rc == 0 and "alpha" in out and "beta" in out
+    return ok, f"list rc={rc} out={out.strip()[:160]}"
+
+
 SCENARIOS: list[Scenario] = [
     Scenario(
         name="multifile_cli",
@@ -168,6 +235,51 @@ SCENARIOS: list[Scenario] = [
         ),
         check=_check_fib,
         tags=["algorithm", "tests"],
+    ),
+    Scenario(
+        name="cross_file_bug",
+        goal=(
+            "The tests in test_shop.py fail. There is a bug inside the shop package "
+            "(shop/pricing.py and shop/cart.py work together). Find and fix the bug so the "
+            "tests pass. Run pytest to confirm."
+        ),
+        check=_pytest_green,
+        setup=_setup_cross_file_bug,
+        tags=["debug", "multi-file"],
+    ),
+    Scenario(
+        name="lru_cache",
+        goal=(
+            "Implement lru.py with a class LRUCache(capacity) supporting get(key) (returns the "
+            "value, or -1 if absent) and put(key, value), evicting the least-recently-used entry "
+            "when it exceeds capacity. Also write test_lru.py with pytest tests, and run pytest "
+            "to confirm they pass."
+        ),
+        check=_check_lru,
+        tags=["data-structure", "design"],
+    ),
+    Scenario(
+        name="feature_add_regression",
+        goal=(
+            "calc.py has add and sub with passing tests in test_calc.py. Add a power(base, exp) "
+            "function to calc.py and a matching test in test_calc.py, WITHOUT breaking the "
+            "existing tests. Run pytest and make sure everything passes."
+        ),
+        check=_check_feature_add,
+        setup=_setup_feature_add,
+        tags=["feature", "regression"],
+    ),
+    Scenario(
+        name="todo_cli",
+        goal=(
+            "Build a todo package in this directory: todo/store.py with functions to add, list, "
+            "and complete tasks persisted to a JSON file, and todo/cli.py so that "
+            "`python todo/cli.py add \"buy milk\"` adds a task, `python todo/cli.py list` prints "
+            "the tasks, and `python todo/cli.py done 1` marks task 1 complete. Verify by running "
+            "those commands; tasks must persist across separate invocations."
+        ),
+        check=_check_todo_cli,
+        tags=["multi-file", "cli", "state"],
     ),
 ]
 
