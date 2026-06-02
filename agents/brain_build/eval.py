@@ -341,6 +341,63 @@ def _check_bank(root: str) -> tuple[bool, str]:
     )
 
 
+def _check_async(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "async",
+        "from asyncwork import run_total\n"
+        "assert run_total(100) == 4950\n"
+        "print('ASYNC_OK')\n",
+        "ASYNC_OK",
+    )
+
+
+def _check_dataclass(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "point",
+        "from point import Point\n"
+        "pts = sorted([Point(3, 4), Point(1, 1), Point(0, 2)])\n"
+        "assert [(p.x, p.y) for p in pts] == [(1, 1), (0, 2), (3, 4)]\n"
+        "print('DC_OK')\n",
+        "DC_OK",
+    )
+
+
+def _check_context_manager(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "cm",
+        "from cm import capture\n"
+        "with capture() as log:\n    log.append('body')\n"
+        "assert log == ['enter', 'body', 'exit'], log\n"
+        "print('CM_OK')\n",
+        "CM_OK",
+    )
+
+
+def _check_custom_exc(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "validate",
+        "from validate import validate_age, ValidationError\n"
+        "assert validate_age(30) == 30\n"
+        "for bad in (-1, 200):\n"
+        "    try:\n        validate_age(bad)\n"
+        "        raise AssertionError('no error: ' + str(bad))\n"
+        "    except ValidationError:\n        pass\n"
+        "print('VAL_OK')\n",
+        "VAL_OK",
+    )
+
+
+def _check_recursion(root: str) -> tuple[bool, str]:
+    return _verify(
+        root, "flatten",
+        "from flatten import flatten\n"
+        "assert flatten([1, [2, [3, 4], 5], [6]]) == [1, 2, 3, 4, 5, 6]\n"
+        "assert flatten([]) == []\n"
+        "print('FLAT_OK')\n",
+        "FLAT_OK",
+    )
+
+
 SCENARIOS: list[Scenario] = [
     Scenario(
         name="multifile_cli",
@@ -557,6 +614,58 @@ SCENARIOS: list[Scenario] = [
         check=_check_bank,
         tags=["state", "rules", "hard"],
     ),
+    Scenario(
+        name="async_gather",
+        goal=(
+            "Write asyncwork.py with an async function total(n) that schedules n coroutines (each "
+            "returning its own index 0..n-1) concurrently with asyncio.gather and returns their "
+            "sum, plus a sync wrapper run_total(n) using asyncio.run. Verify run_total(100) "
+            "== 4950."
+        ),
+        check=_check_async,
+        tags=["async", "hard"],
+    ),
+    Scenario(
+        name="dataclass_order",
+        goal=(
+            "Write point.py with a frozen, ordered dataclass Point(x, y) that sorts by squared "
+            "distance from the origin (x*x + y*y). sorted([Point(3,4), Point(1,1), Point(0,2)]) "
+            "must come out nearest-first. Verify by running it."
+        ),
+        check=_check_dataclass,
+        tags=["dataclass", "sorting"],
+    ),
+    Scenario(
+        name="context_manager",
+        goal=(
+            "Write cm.py with a context manager capture() that yields a list; on entry it appends "
+            "'enter' and on exit it appends 'exit'. After running "
+            "`with capture() as log: log.append('body')`, log must equal "
+            "['enter','body','exit']. Verify it."
+        ),
+        check=_check_context_manager,
+        tags=["context-manager"],
+    ),
+    Scenario(
+        name="custom_exceptions",
+        goal=(
+            "Write validate.py with a custom exception ValidationError(Exception) and validate_age("
+            "age) that raises ValidationError when age < 0 or age > 150 and otherwise returns age. "
+            "Verify it raises for -1 and 200 and returns 30 for 30."
+        ),
+        check=_check_custom_exc,
+        tags=["errors"],
+    ),
+    Scenario(
+        name="recursion_flatten",
+        goal=(
+            "Write flatten.py with flatten(nested) that recursively flattens arbitrarily nested "
+            "lists into a single flat list, preserving order. Verify flatten([1,[2,[3,4],5],[6]]) "
+            "== [1,2,3,4,5,6] and flatten([]) == []."
+        ),
+        check=_check_recursion,
+        tags=["recursion"],
+    ),
 ]
 
 
@@ -639,12 +748,31 @@ async def main() -> int:
         results.append(res)
 
     passed = sum(1 for r in results if r["passed"])
-    report = {"ts": time.time(), "model": BuildAgent().model, "passed": passed,
-              "total": len(results), "results": results}
+
+    # Per-tag pass rates — systematic view of which capability areas are weak.
+    by_tag: dict[str, list[int]] = {}
+    for r in results:
+        for tag in r["tags"]:
+            agg = by_tag.setdefault(tag, [0, 0])
+            agg[0] += int(bool(r["passed"]))
+            agg[1] += 1
+
+    report = {
+        "ts": time.time(),
+        "model": BuildAgent().model,
+        "passed": passed,
+        "total": len(results),
+        "by_tag": {t: {"passed": v[0], "total": v[1]} for t, v in by_tag.items()},
+        "results": results,
+    }
     report_path = os.path.join(data_dir, "eval_report.json")
     with open(report_path, "w", encoding="utf-8") as f:
         json.dump(report, f, indent=2)
 
+    print("\nby tag (passed/total):")
+    for tag in sorted(by_tag):
+        p, tot = by_tag[tag]
+        print(f"  {tag:16} {p}/{tot}")
     print(f"\n=== {passed}/{len(results)} scenarios passed ===")
     print(f"report: {report_path}")
     return 0 if passed == len(results) else 1
