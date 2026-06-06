@@ -700,6 +700,27 @@ async def chat_stream(request: Request, body: StreamChatRequest) -> StreamingRes
             llm_messages.append({"role": role, "content": content})
     llm_messages.append({"role": "user", "content": body.message})
 
+    # Live-retrieval phase: let KIA fetch URLs / search the web inline before answering.
+    # Best-effort and fully isolated — any failure leaves the normal chat path intact.
+    try:
+        from brain_chat.augment import gather_live_context
+
+        live = await gather_live_context(llm_messages[1:])
+        if live:
+            llm_messages.insert(
+                1,
+                {
+                    "role": "system",
+                    "content": (
+                        "You retrieved the following live information using your web "
+                        "tools just now. Ground your answer in it and cite URLs where "
+                        "relevant:\n\n" + live
+                    ),
+                },
+            )
+    except Exception:
+        pass
+
     async def event_stream() -> AsyncGenerator[str, None]:
         yield _sse({"type": "meta", "conversation_id": conv_id})
         full: list[str] = []

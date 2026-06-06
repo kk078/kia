@@ -129,6 +129,10 @@ class Settings(BaseSettings):
     # If the planner model is a cloud/OpenAI-compatible endpoint, set its base URL + key.
     connector_planner_base_url: str = ""
     connector_planner_api_key: str = ""
+    # Live retrieval in the plain chat box: let chat fetch URLs / search the web inline.
+    chat_tools_enabled: bool = True
+    # Max tool-calling steps for the chat live-retrieval phase before answering.
+    chat_tools_max_steps: int = 4
 
 
 settings = Settings()
