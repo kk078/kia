@@ -7,7 +7,7 @@ from collections.abc import AsyncGenerator
 from datetime import datetime
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi import FastAPI, File, Form, HTTPException, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -749,6 +749,48 @@ async def chat_stream(request: Request, body: StreamChatRequest) -> StreamingRes
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@app.post("/api/v1/vision/describe")
+async def vision_describe(
+    file: UploadFile = File(...),
+    prompt: str = Form("Describe this image in detail."),
+) -> dict[str, Any]:
+    """Understand an uploaded image with the local Ollama vision model."""
+    from brain_chat.vision import describe_image
+
+    data = await file.read()
+    mime = file.content_type or "image/png"
+    try:
+        answer = await describe_image(data, prompt, mime)
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"Vision failed ({type(e).__name__}). Ensure the model is pulled: "
+                f"ollama pull {settings.vision_model}"
+            ),
+        )
+    return {"answer": answer, "model": settings.vision_model}
+
+
+@app.post("/api/v1/audio/transcribe")
+async def audio_transcribe(file: UploadFile = File(...)) -> dict[str, Any]:
+    """Transcribe an uploaded audio file with local faster-whisper."""
+    from brain_chat.audio import transcribe_audio
+
+    data = await file.read()
+    suffix = os.path.splitext(file.filename or "audio.wav")[1] or ".wav"
+    try:
+        text = await transcribe_audio(data, suffix)
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="faster-whisper not installed. Run: pip install faster-whisper",
+        )
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Transcription failed ({type(e).__name__})")
+    return {"text": text, "model": settings.whisper_model}
 
 
 @app.post("/api/v1/knowledge/index")

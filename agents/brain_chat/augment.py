@@ -12,6 +12,7 @@ exactly as before.
 from __future__ import annotations
 
 import json
+import os
 from typing import Any
 
 import litellm
@@ -50,6 +51,29 @@ def _planner() -> tuple[str, dict[str, Any]]:
     return model, kwargs
 
 
+_WEB_NAMES = {"web_search", "web_fetch"}
+
+
+async def _maybe_connect_connectors() -> Any:
+    """Connect configured MCP connectors if a non-empty config exists; else return None."""
+    if not settings.chat_connectors_enabled:
+        return None
+    cfg_path = os.getenv("KIA_CONNECTORS_CONFIG") or settings.connectors_config
+    if not cfg_path or not os.path.exists(cfg_path):
+        return None
+    try:
+        from brain_connectors.client import MCPConnectorManager
+
+        manager = MCPConnectorManager(cfg_path)
+        tools = await manager.connect()
+        if not tools:
+            await manager.close()
+            return None
+        return manager
+    except Exception:
+        return None
+
+
 async def gather_live_context(
     messages: list[dict[str, str]], max_steps: int | None = None
 ) -> str | None:
@@ -59,36 +83,51 @@ async def gather_live_context(
     steps = max_steps or settings.chat_tools_max_steps
     model, kwargs = _planner()
 
+    # Web tools are always available; merge in MCP connector tools when configured.
+    manager = await _maybe_connect_connectors()
+    tools = list(web_tools.TOOLS)
+    if manager is not None:
+        tools += manager.tools
+
     convo: list[dict[str, Any]] = [{"role": "system", "content": _PLANNER_SYS}]
     for m in messages:
         if m.get("role") in ("user", "assistant") and m.get("content"):
             convo.append({"role": m["role"], "content": m["content"]})
 
     transcript: list[str] = []
-    for _ in range(steps):
-        resp = await litellm.acompletion(
-            model=model, messages=convo, tools=web_tools.TOOLS, tool_choice="auto", **kwargs
-        )
-        msg = resp.choices[0].message
-        tool_calls = getattr(msg, "tool_calls", None)
-        if not tool_calls:
-            break
-        convo.append(
-            {
-                "role": "assistant",
-                "content": msg.content or "",
-                "tool_calls": [tc.model_dump() for tc in tool_calls],
-            }
-        )
-        for tc in tool_calls:
-            name = tc.function.name
-            try:
-                args = json.loads(tc.function.arguments or "{}")
-            except json.JSONDecodeError:
-                args = {}
-            result = await web_tools.dispatch(name, args)
-            transcript.append(f"### {name}({json.dumps(args, ensure_ascii=False)})\n{result}")
-            convo.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+    try:
+        for _ in range(steps):
+            resp = await litellm.acompletion(
+                model=model, messages=convo, tools=tools, tool_choice="auto", **kwargs
+            )
+            msg = resp.choices[0].message
+            tool_calls = getattr(msg, "tool_calls", None)
+            if not tool_calls:
+                break
+            convo.append(
+                {
+                    "role": "assistant",
+                    "content": msg.content or "",
+                    "tool_calls": [tc.model_dump() for tc in tool_calls],
+                }
+            )
+            for tc in tool_calls:
+                name = tc.function.name
+                try:
+                    args = json.loads(tc.function.arguments or "{}")
+                except json.JSONDecodeError:
+                    args = {}
+                if name in _WEB_NAMES:
+                    result = await web_tools.dispatch(name, args)
+                elif manager is not None:
+                    result = await manager.call_tool(name, args)
+                else:
+                    result = f"[error: unknown tool '{name}']"
+                transcript.append(f"### {name}({json.dumps(args, ensure_ascii=False)})\n{result}")
+                convo.append({"role": "tool", "tool_call_id": tc.id, "content": result})
+    finally:
+        if manager is not None:
+            await manager.close()
 
     if not transcript:
         return None

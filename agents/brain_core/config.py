@@ -133,6 +133,12 @@ class Settings(BaseSettings):
     chat_tools_enabled: bool = True
     # Max tool-calling steps for the chat live-retrieval phase before answering.
     chat_tools_max_steps: int = 4
+    # Also offer configured MCP connectors (Notion, GitHub, etc.) in the chat phase.
+    chat_connectors_enabled: bool = True
+    # Local Ollama vision model for image understanding (pull it first).
+    vision_model: str = "llama3.2-vision"
+    # faster-whisper model size for audio transcription (tiny/base/small/medium/large-v3).
+    whisper_model: str = "base"
 
 
 settings = Settings()
