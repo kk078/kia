@@ -13,6 +13,9 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.openai_compat import router as openai_router
+from api.routes.n8n import router as n8n_router
+from api.routes.proactive import router as proactive_router
+from api.routes.proactive import shutdown_proactive
 from api.security import security_middleware
 from brain_core.config import settings
 from brain_core.llm import needs_deep_reasoning
@@ -46,6 +49,13 @@ app.add_middleware(
 
 # KIA OpenAI-compatible surface (/v1/models, /v1/chat/completions)
 app.include_router(openai_router)
+
+# Proactive behavior (scheduled prompts, file watches) + n8n workflow bridge.
+app.include_router(proactive_router)
+app.include_router(n8n_router)
+
+# Stop the proactive scheduler/watcher on the loop they started on.
+app.on_event("shutdown")(shutdown_proactive)
 
 
 @app.middleware("http")

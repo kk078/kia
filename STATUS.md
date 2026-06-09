@@ -1,7 +1,7 @@
 # KIA (Secondary Brain) — Project Status
 
 **Date**: 2026-06-09
-**Status**: Stabilized — phased roadmap (1–4) complete, hardening pass applied
+**Status**: Stabilized — all phases (1–5) complete (see `PHASE_5_COMPLETE.md`)
 
 KIA is a personal AI assistant platform running natively on Windows: FastAPI
 backend, React frontend, local-first LLMs (Ollama) with tiered cloud failover,
@@ -33,14 +33,18 @@ loop fed by captured usage traces.
 | MCP (server + connectors) | ✅ stdio MCP server; connector client in chat + `/connectors` |
 | Host execution | ✅ confirmation-gated planner → host runner |
 | **API auth + rate limiting** | ✅ `KIA_API_KEY` bearer/X-API-Key + per-client sliding window (2026-06-09) |
+| **Proactive behavior** | ✅ `/api/v1/proactive/*` — scheduled prompts + file watches feeding episodic memory (2026-06-09) |
+| **n8n bridge** | ✅ `/api/v1/n8n/*` — list/run/activate workflows (2026-06-09) |
+| **Load testing** | ✅ `scripts/load_test.py` — 172 RPS @ p50 16ms (4 workers); limiter verified at exactly 120/min (2026-06-09) |
+| Edge worker | ✅ `worker/` — Access-JWT-validating proxy + Ollama Cloud failover (was wrongly listed as minimal) |
 | Observability | ✅ OpenTelemetry, Langfuse, Prometheus/Grafana/Loki configs |
 
 ## Quality Gates (last verified 2026-06-09)
 
 - `ruff check` — clean
 - `ruff format --check` — clean
-- `mypy` — clean (116 source files)
-- `pytest tests/unit` — all passing (120+ tests)
+- `mypy` — clean
+- `pytest tests/unit` — 138 passing
 
 ## Persona & Execution Standards
 
@@ -69,16 +73,17 @@ Invariants are locked by `tests/unit/test_persona.py`.
 
 ## Known Gaps / Backlog
 
-1. **Load testing** — never performed; the in-process rate limiter is
-   single-instance by design.
-2. **`brain_proactive`** — watchers/schedulers are partial.
-3. **`brain_n8n`** — bridge exists; little real workflow coverage.
-4. **`worker/`** — Cloudflare worker directory is minimal (deployment lives in
-   CI + `CLOUDFLARE_DEPLOYMENT.md`).
-5. **Training on CPU** — full LoRA runs need a GPU; smoke mode validates the
+1. **Training on CPU** — full LoRA runs need a GPU; smoke mode validates the
    pipeline only.
-6. **README/AGENTS.md** — still describe the Docker/Weaviate stack as primary;
-   accurate for server mode, but native mode is the daily driver.
+2. **Proactive schedule persistence** — scheduled prompts/watches are
+   in-process and don't survive restarts (v1; `GET /api/v1/proactive/status`
+   is the source of truth).
+3. **Multi-replica rate limiting** — the limiter is in-process by design;
+   fine for single-instance deployments.
+
+(Earlier versions of this file listed `brain_proactive`, `brain_n8n`, and
+`worker/` as partial — auditing showed they were implemented; proactive and
+n8n just lacked API exposure, added 2026-06-09.)
 
 ## History
 

@@ -1,0 +1,30 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "KIA Backend API (FastAPI, dev copy)",
+      "runtimeExecutable": "C:/dev/agents/.venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "api.main:app", "--reload", "--port", "8010", "--app-dir", "agents"],
+      "port": 8010,
+      "autoPort": false
+    },
+    {
+      "name": "Frontend (Vue + Vite)",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["run", "dev", "--prefix", "frontend"],
+      "port": 3001
+    },
+    {
+      "name": ".NET Gateway (ASP.NET Core)",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "gateway/Gateway.Api"],
+      "port": 5210
+    },
+    {
+      "name": "Host Runner (gated shell executor)",
+      "runtimeExecutable": "C:/dev/agents/.venv/Scripts/python.exe",
+      "runtimeArgs": ["host_runner/runner.py"],
+      "port": 8765
+    }
+  ]
+}

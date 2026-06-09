@@ -4,6 +4,11 @@
 Autonomous knowledge system with multi-layer memory, hierarchical planning, and multi-agent orchestration.
 Dual-stack: Python agents + .NET gateway, running natively on Windows.
 
+**Deployment reality**: the primary mode is NATIVE Windows (`kia_native_run.ps1`:
+uvicorn :8000 + embedded Chroma/SQLite + local Ollama + host runner; no Docker).
+The Docker stack (Redis/Weaviate/FalkorDB/Langfuse) is the optional server mode.
+Storage backends switch via `VECTOR_BACKEND=chroma` / `STORAGE_BACKEND=sqlite`.
+
 ## Architecture
 
 ```
@@ -134,7 +139,8 @@ docker-compose down
 ### API Gateway
 - Python FastAPI gateway exposes all components via REST API
 - Run with: `uv run uvicorn api.main:app --reload --port 8000`
-- Endpoints: `/api/v1/memory/*`, `/api/v1/orchestrator/*`, `/api/v1/llm/*`, `/api/v1/knowledge/*`
+- Endpoints: `/api/v1/memory/*`, `/api/v1/orchestrator/*`, `/api/v1/llm/*`, `/api/v1/knowledge/*`,
+  `/api/v1/proactive/*` (scheduled prompts + file watches), `/api/v1/n8n/*` (workflow bridge)
 - Health check: `/health`
 - Security (`api/security.py`): set `KIA_API_KEY` to require `Authorization: Bearer <key>`
   (or `X-API-Key`) on every request — REQUIRED when exposed beyond localhost.

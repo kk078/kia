@@ -1,6 +1,21 @@
-# Secondary Brain
+# KIA — Secondary Brain
 
 Autonomous knowledge system with multi-layer memory, hierarchical planning, and multi-agent orchestration.
+
+## Quick Start (native Windows — primary mode)
+
+The daily-driver deployment runs everything natively, no Docker required:
+
+```powershell
+.\kia_native_run.ps1     # uvicorn :8000 + embedded Chroma/SQLite + Ollama + host runner
+.\kia_watchdog.ps1       # optional: self-healing supervisor
+.\kia_train.ps1          # optional: LoRA fine-tune from captured traces
+```
+
+Native mode uses embedded stores (Chroma for vectors, SQLite for everything
+else) — Redis/Weaviate/FalkorDB are only needed for the Docker server mode
+described below. Set `KIA_API_KEY` in `.env` before exposing the API beyond
+localhost (see `.env.example`).
 
 ## Features
 
@@ -30,7 +45,7 @@ Autonomous knowledge system with multi-layer memory, hierarchical planning, and 
 | Local LLMs | Ollama |
 | Workflow | n8n |
 
-## Quick Start
+## Server Mode (Docker)
 
 ### Prerequisites
 
