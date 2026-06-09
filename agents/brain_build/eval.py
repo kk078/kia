@@ -77,7 +77,8 @@ def _check_fix_tests(root: str) -> tuple[bool, str]:
 def _setup_fix_tests(root: str) -> None:
     _write(root, "mathx.py", "def add(a, b):\n    return a - b  # BUG: should add\n")
     _write(
-        root, "test_mathx.py",
+        root,
+        "test_mathx.py",
         "from mathx import add\n\n"
         "def test_add():\n    assert add(2, 3) == 5\n    assert add(10, 5) == 15\n",
     )
@@ -124,12 +125,14 @@ def _setup_cross_file_bug(root: str) -> None:
     _write(root, "shop/__init__.py", "")
     _write(root, "shop/pricing.py", "def line_total(price, qty):\n    return price + qty  # BUG\n")
     _write(
-        root, "shop/cart.py",
+        root,
+        "shop/cart.py",
         "from shop.pricing import line_total\n\n\n"
         "def cart_total(items):\n    return sum(line_total(p, q) for p, q in items)\n",
     )
     _write(
-        root, "test_shop.py",
+        root,
+        "test_shop.py",
         "from shop.cart import cart_total\n\n\n"
         "def test_cart_total():\n    assert cart_total([(10, 2), (5, 3)]) == 35\n",
     )
@@ -155,7 +158,8 @@ def _setup_feature_add(root: str) -> None:
     calc = "def add(a, b):\n    return a + b\n\n\ndef sub(a, b):\n    return a - b\n"
     _write(root, "calc.py", calc)
     _write(
-        root, "test_calc.py",
+        root,
+        "test_calc.py",
         "from calc import add, sub\n\n\n"
         "def test_add():\n    assert add(2, 3) == 5\n\n\n"
         "def test_sub():\n    assert sub(5, 2) == 3\n",
@@ -191,7 +195,8 @@ def _verify(root: str, name: str, code: str, marker: str) -> tuple[bool, str]:
 
 def _check_expr(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "expr",
+        root,
+        "expr",
         "from expr import evaluate\n"
         "assert abs(evaluate('2+3*4-(1+1)') - 12) < 1e-9\n"
         "assert abs(evaluate('10/2/5') - 1) < 1e-9\n"
@@ -203,7 +208,8 @@ def _check_expr(root: str) -> tuple[bool, str]:
 
 def _check_dijkstra(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "dijkstra",
+        root,
+        "dijkstra",
         "from graph import shortest_path\n"
         "g = {'A': [('B', 1), ('C', 4)], 'B': [('C', 2), ('D', 5)], "
         "'C': [('D', 1)], 'D': []}\n"
@@ -215,7 +221,8 @@ def _check_dijkstra(root: str) -> tuple[bool, str]:
 
 def _check_counter(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "counter",
+        root,
+        "counter",
         "import threading\n"
         "from counter import Counter\n"
         "c = Counter()\n"
@@ -231,7 +238,8 @@ def _check_counter(root: str) -> tuple[bool, str]:
 
 def _check_package_api(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "pkg",
+        root,
+        "pkg",
         "from mathpkg import add, sub, power, factorial\n"
         "assert add(2, 3) == 5 and sub(5, 2) == 3\n"
         "assert power(2, 10) == 1024 and factorial(5) == 120\n"
@@ -242,13 +250,15 @@ def _check_package_api(root: str) -> tuple[bool, str]:
 
 def _setup_refactor(root: str) -> None:
     _write(
-        root, "shapes.py",
+        root,
+        "shapes.py",
         "def circle_area(r):\n    return 3.141592653589793 * r * r\n\n\n"
         "def cylinder_volume(r, h):\n    return 3.141592653589793 * r * r * h\n\n\n"
         "def sphere_volume(r):\n    return (4.0 / 3.0) * 3.141592653589793 * r * r * r\n",
     )
     _write(
-        root, "test_shapes.py",
+        root,
+        "test_shapes.py",
         "from shapes import circle_area, cylinder_volume, sphere_volume\n\n\n"
         "def test_circle():\n    assert abs(circle_area(2) - 12.566370614359172) < 1e-9\n\n\n"
         "def test_cylinder():\n"
@@ -261,7 +271,8 @@ def _setup_mutable_bug(root: str) -> None:
     acc = "def append_item(item, bucket=[]):\n    bucket.append(item)\n    return bucket\n"
     _write(root, "acc.py", acc)
     _write(
-        root, "test_bug.py",
+        root,
+        "test_bug.py",
         "from acc import append_item\n\n\n"
         "def test_isolated():\n"
         "    assert append_item(1) == [1]\n    assert append_item(2) == [2]\n",
@@ -270,7 +281,8 @@ def _setup_mutable_bug(root: str) -> None:
 
 def _check_sqlite_crud(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "db",
+        root,
+        "db",
         "import os\n"
         "from db import init_db, add_user, get_user, update_age\n"
         "p = 'users.db'\n"
@@ -287,7 +299,8 @@ def _check_sqlite_crud(root: str) -> tuple[bool, str]:
 
 def _check_regex(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "extract",
+        root,
+        "extract",
         "from extract import extract_emails\n"
         "t = 'reach a@b.com, x@y.org and a@b.com; bad@, ok.name+tag@sub.domain.co end'\n"
         "r = extract_emails(t)\n"
@@ -300,7 +313,8 @@ def _check_regex(root: str) -> tuple[bool, str]:
 
 def _check_memoize(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "memo",
+        root,
+        "memo",
         "from memo import memoize\n"
         "calls = {'n': 0}\n"
         "@memoize\n"
@@ -314,7 +328,8 @@ def _check_memoize(root: str) -> tuple[bool, str]:
 
 def _check_toposort(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "toposort",
+        root,
+        "toposort",
         "from toposort import topo_sort\n"
         "order = topo_sort({'a': [], 'b': ['a'], 'c': ['a', 'b'], 'd': ['c']})\n"
         "pos = {n: i for i, n in enumerate(order)}\n"
@@ -329,7 +344,8 @@ def _check_toposort(root: str) -> tuple[bool, str]:
 
 def _check_bank(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "bank",
+        root,
+        "bank",
         "from account import BankAccount\n"
         "a = BankAccount()\n"
         "a.deposit(50)\na.withdraw(120)\n"
@@ -343,17 +359,17 @@ def _check_bank(root: str) -> tuple[bool, str]:
 
 def _check_async(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "async",
-        "from asyncwork import run_total\n"
-        "assert run_total(100) == 4950\n"
-        "print('ASYNC_OK')\n",
+        root,
+        "async",
+        "from asyncwork import run_total\nassert run_total(100) == 4950\nprint('ASYNC_OK')\n",
         "ASYNC_OK",
     )
 
 
 def _check_dataclass(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "point",
+        root,
+        "point",
         "from point import Point\n"
         "pts = sorted([Point(3, 4), Point(1, 1), Point(0, 2)])\n"
         "assert [(p.x, p.y) for p in pts] == [(1, 1), (0, 2), (3, 4)]\n"
@@ -364,7 +380,8 @@ def _check_dataclass(root: str) -> tuple[bool, str]:
 
 def _check_context_manager(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "cm",
+        root,
+        "cm",
         "from cm import capture\n"
         "with capture() as log:\n    log.append('body')\n"
         "assert log == ['enter', 'body', 'exit'], log\n"
@@ -375,7 +392,8 @@ def _check_context_manager(root: str) -> tuple[bool, str]:
 
 def _check_custom_exc(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "validate",
+        root,
+        "validate",
         "from validate import validate_age, ValidationError\n"
         "assert validate_age(30) == 30\n"
         "for bad in (-1, 200):\n"
@@ -389,7 +407,8 @@ def _check_custom_exc(root: str) -> tuple[bool, str]:
 
 def _check_recursion(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "flatten",
+        root,
+        "flatten",
         "from flatten import flatten\n"
         "assert flatten([1, [2, [3, 4], 5], [6]]) == [1, 2, 3, 4, 5, 6]\n"
         "assert flatten([]) == []\n"
@@ -400,7 +419,8 @@ def _check_recursion(root: str) -> tuple[bool, str]:
 
 def _check_rle(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "rle",
+        root,
+        "rle",
         "from rle import encode, decode\n"
         "assert encode('aaabbc') == 'a3b2c1'\n"
         "assert decode('a3b2c1') == 'aaabbc'\n"
@@ -413,7 +433,8 @@ def _check_rle(root: str) -> tuple[bool, str]:
 
 def _check_sieve(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "sieve",
+        root,
+        "sieve",
         "from sieve import primes_up_to\n"
         "assert primes_up_to(30) == [2, 3, 5, 7, 11, 13, 17, 19, 23, 29]\n"
         "assert len(primes_up_to(100)) == 25\n"
@@ -425,7 +446,8 @@ def _check_sieve(root: str) -> tuple[bool, str]:
 
 def _check_balanced(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "balanced",
+        root,
+        "balanced",
         "from balanced import is_balanced\n"
         "assert is_balanced('(a[b]{c})') is True\n"
         "assert is_balanced('(]') is False\n"
@@ -438,7 +460,8 @@ def _check_balanced(root: str) -> tuple[bool, str]:
 
 def _check_matrix(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "matrix",
+        root,
+        "matrix",
         "from matrix import transpose, matmul\n"
         "assert transpose([[1, 2, 3], [4, 5, 6]]) == [[1, 4], [2, 5], [3, 6]]\n"
         "assert matmul([[1, 2], [3, 4]], [[5, 6], [7, 8]]) == [[19, 22], [43, 50]]\n"
@@ -449,7 +472,8 @@ def _check_matrix(root: str) -> tuple[bool, str]:
 
 def _check_workdays(root: str) -> tuple[bool, str]:
     return _verify(
-        root, "workdays",
+        root,
+        "workdays",
         "from workdays import business_days\n"
         "assert business_days('2026-06-01', '2026-06-05') == 5\n"
         "assert business_days('2026-06-07', '2026-06-08') == 1\n"
@@ -551,7 +575,7 @@ SCENARIOS: list[Scenario] = [
         goal=(
             "Build a todo package in this directory: todo/store.py with functions to add, list, "
             "and complete tasks persisted to a JSON file, and todo/cli.py so that "
-            "`python todo/cli.py add \"buy milk\"` adds a task, `python todo/cli.py list` prints "
+            '`python todo/cli.py add "buy milk"` adds a task, `python todo/cli.py list` prints '
             "the tasks, and `python todo/cli.py done 1` marks task 1 complete. Verify by running "
             "those commands; tasks must persist across separate invocations."
         ),
@@ -811,6 +835,7 @@ async def run_scenario(sc: Scenario, runs_dir: str) -> dict[str, Any]:
     error = ""
     t0 = time.monotonic()
     try:
+
         async def _go() -> None:
             nonlocal steps, finished, last_summary, error
             async for ev in _drive(agent, sid):

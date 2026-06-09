@@ -136,6 +136,10 @@ docker-compose down
 - Run with: `uv run uvicorn api.main:app --reload --port 8000`
 - Endpoints: `/api/v1/memory/*`, `/api/v1/orchestrator/*`, `/api/v1/llm/*`, `/api/v1/knowledge/*`
 - Health check: `/health`
+- Security (`api/security.py`): set `KIA_API_KEY` to require `Authorization: Bearer <key>`
+  (or `X-API-Key`) on every request — REQUIRED when exposed beyond localhost.
+  `RATE_LIMIT_PER_MINUTE` (default 120, 0 = off) rate-limits per client.
+  `/health` and `/metrics` are always exempt (watchdog + Prometheus).
 
 ### Task Router
 - Use `brain_core.router.TaskRouter` for intelligent framework selection

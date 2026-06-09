@@ -13,6 +13,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.openai_compat import router as openai_router
+from api.security import security_middleware
 from brain_core.config import settings
 from brain_core.llm import needs_deep_reasoning
 from brain_core.persona import KIA_SYSTEM
@@ -56,6 +57,11 @@ async def trace_context_middleware(request: Request, call_next: Any) -> Any:
     session_id = request.query_params.get("session_id") or request.headers.get("x-session-id")
     set_trace_context(session_id=session_id, user_id=user)
     return await call_next(request)
+
+
+# Auth (KIA_API_KEY) + rate limiting (RATE_LIMIT_PER_MINUTE). Registered last so it
+# is the OUTERMOST middleware: rejected requests never reach tracing or handlers.
+app.middleware("http")(security_middleware)
 
 
 def _llm_error(e: Exception) -> HTTPException:
