@@ -17,10 +17,23 @@ your behalf during a chat.
 
 - **MCPConnectorManager** (`brain_connectors/client.py`) launches each server from
   `connectors.json`, discovers tools, executes calls.
+- **ConnectorPool** (`brain_connectors/pool.py`) keeps ONE connected manager alive
+  per process (servers are not relaunched on every request — warm calls are ~30x
+  faster) and reconnects automatically when `connectors.json` changes.
 - **ConnectorAgent** (`brain_connectors/agent.py`) runs the tool-calling loop. The
   *tool-planning* step uses `CONNECTOR_PLANNER_MODEL` if set (recommended: a strong
   cloud model, since small local models pick tools unreliably), and falls back to the
   local model otherwise.
+
+## Security model: ambient vs explicit
+
+- **Plain chat** (the live-retrieval phase) only ever sees **read-only** connector
+  tools — reads, lists, searches, fetches (`is_readonly_tool` in
+  `brain_connectors/client.py`, enforced both at tool-offering and at dispatch).
+  Chat can look things up; it cannot write files, push to repos, or mutate memory.
+- **`/api/v1/connectors/query`** (explicit invocation) gets the FULL toolset,
+  including writes within the filesystem server's allowed directories.
+- **`/agent`** remains the surface for system-level changes, with approval gates.
 
 ## Honest limitation
 

@@ -49,28 +49,33 @@ def chunk(text: str, size: int = 1500, overlap: int = 200) -> list[str]:
     text = re.sub(r"\n{3,}", "\n\n", text)
     out, i = [], 0
     while i < len(text):
-        out.append(text[i:i + size])
+        out.append(text[i : i + size])
         i += size - overlap
     return [c for c in out if c.strip()]
 
 
 def post_rag(api: str, content: str, source: str) -> None:
     body = json.dumps({"content": content, "source": source}).encode()
-    req = urllib.request.Request(api.rstrip("/") + "/api/v1/knowledge/ingest",
-                                 data=body, headers={"Content-Type": "application/json"},
-                                 method="POST")
+    req = urllib.request.Request(
+        api.rstrip("/") + "/api/v1/knowledge/ingest",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
     with urllib.request.urlopen(req, timeout=600) as r:
         r.read()
 
 
 def teacher_answer(url: str, model: str, key: str, prompt: str) -> str:
-    body = json.dumps({"model": model, "messages": [{"role": "user", "content": prompt}],
-                       "temperature": 0.3}).encode()
+    body = json.dumps(
+        {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}
+    ).encode()
     headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = "Bearer " + key
-    req = urllib.request.Request(url.rstrip("/") + "/chat/completions",
-                                 data=body, headers=headers, method="POST")
+    req = urllib.request.Request(
+        url.rstrip("/") + "/chat/completions", data=body, headers=headers, method="POST"
+    )
     with urllib.request.urlopen(req, timeout=600) as r:
         return json.loads(r.read().decode())["choices"][0]["message"]["content"]
 
@@ -130,15 +135,23 @@ def main() -> None:
             excerpt = text[:6000]
             for q in TRAIN_QS:
                 try:
-                    ans = teacher_answer(args.teacher_url, args.teacher_model,
-                                         args.teacher_key, f"{q}\n\nDocument ({rel}):\n{excerpt}")
+                    ans = teacher_answer(
+                        args.teacher_url,
+                        args.teacher_model,
+                        args.teacher_key,
+                        f"{q}\n\nDocument ({rel}):\n{excerpt}",
+                    )
                 except Exception as e:
                     print(f"  !! teach {rel}: {e}")
                     continue
                 with open(args.out, "a", encoding="utf-8") as f:
-                    rec = {"messages": [{"role": "user", "content": f"{q} (re: {rel})"},
-                                        {"role": "assistant", "content": ans}],
-                           "meta": {"domain": "documents", "source": rel}}
+                    rec = {
+                        "messages": [
+                            {"role": "user", "content": f"{q} (re: {rel})"},
+                            {"role": "assistant", "content": ans},
+                        ],
+                        "meta": {"domain": "documents", "source": rel},
+                    }
                     f.write(json.dumps(rec, ensure_ascii=False) + "\n")
                 train_pairs += 1
             print(f"  [train] {rel}")

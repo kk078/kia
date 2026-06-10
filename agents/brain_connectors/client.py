@@ -19,6 +19,54 @@ from typing import Any
 # fails when the optional dependency or a server is unavailable (keeps CI/build green).
 
 
+# Read-only gate for AMBIENT use (plain chat). A tool is read-only when its bare
+# name starts with an allowed verb AND contains no mutating verb. Explicit
+# surfaces (/connectors, /agent) get the full toolset; chat must not write.
+_READONLY_PREFIXES = (
+    "read_",
+    "get_",
+    "list_",
+    "search_",
+    "search",
+    "fetch",
+    "query_",
+    "open_",
+    "directory_tree",
+    "convert_",
+    "sequentialthinking",
+)
+_MUTATING_MARKERS = (
+    "write",
+    "create",
+    "update",
+    "delete",
+    "push",
+    "merge",
+    "fork",
+    "add_",
+    "remove",
+    "set_",
+    "execute",
+    "run_",
+    "move",
+    "kill",
+    "install",
+)
+
+
+def is_readonly_tool(qualified_name: str) -> bool:
+    """True if a ``server.tool`` name is safe for ambient (read-only) use."""
+    bare = qualified_name.split(".", 1)[-1].lower()
+    if any(marker in bare for marker in _MUTATING_MARKERS):
+        return False
+    return bare.startswith(_READONLY_PREFIXES)
+
+
+def readonly_subset(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Filter OpenAI-format tool schemas down to the read-only set."""
+    return [t for t in tools if is_readonly_tool(t["function"]["name"])]
+
+
 class MCPConnectorManager:
     """Launches configured MCP servers and proxies tool discovery + calls."""
 

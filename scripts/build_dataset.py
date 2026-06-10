@@ -27,24 +27,40 @@ import os
 import urllib.request
 
 SKIP_DIRS = {
-    ".git", "node_modules", ".venv", "venv", "dist", "build", "out", "__pycache__",
-    ".pytest_cache", ".mypy_cache", ".ruff_cache", "target", "bin", "obj", "data",
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "out",
+    "__pycache__",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+    "target",
+    "bin",
+    "obj",
+    "data",
 }
 EXTS = {".py", ".js", ".ts", ".tsx", ".vue", ".cs", ".go", ".rs", ".java", ".sql"}
 MAX_BYTES = 120_000
 
 
 def teacher_answer(url: str, model: str, key: str, prompt: str) -> str:
-    body = json.dumps({
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": 0.2,
-    }).encode()
+    body = json.dumps(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": 0.2,
+        }
+    ).encode()
     headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = "Bearer " + key
-    req = urllib.request.Request(url.rstrip("/") + "/chat/completions", data=body,
-                                 headers=headers, method="POST")
+    req = urllib.request.Request(
+        url.rstrip("/") + "/chat/completions", data=body, headers=headers, method="POST"
+    )
     with urllib.request.urlopen(req, timeout=600) as r:
         data = json.loads(r.read().decode())
     return data["choices"][0]["message"]["content"]
@@ -97,17 +113,23 @@ def repo_pairs(root: str, url: str, model: str, key: str, per_file: int = 3) -> 
                 continue
             for tmpl in templates:
                 q = tmpl.format(rel=rel)
-                ctx = (f"You are studying Kiran's codebase. Answer using only this file.\n\n"
-                       f"File: {rel}\n```\n{code[:MAX_BYTES]}\n```\n\nQuestion: {q}")
+                ctx = (
+                    f"You are studying Kiran's codebase. Answer using only this file.\n\n"
+                    f"File: {rel}\n```\n{code[:MAX_BYTES]}\n```\n\nQuestion: {q}"
+                )
                 try:
                     ans = teacher_answer(url, model, key, ctx)
                 except Exception as e:
                     print(f"  !! teacher failed on {rel} ({q[:40]}...): {e}")
                     continue
-                pairs.append({"messages": [
-                    {"role": "user", "content": q},
-                    {"role": "assistant", "content": ans},
-                ]})
+                pairs.append(
+                    {
+                        "messages": [
+                            {"role": "user", "content": q},
+                            {"role": "assistant", "content": ans},
+                        ]
+                    }
+                )
             print(f"  + {rel}  ({len(templates)} q)")
     return pairs
 
@@ -144,7 +166,9 @@ def main() -> None:
             print("--repo needs --teacher-url and --teacher-model; skipping repo pairs.")
         else:
             print(f"Generating repo Q&A from {args.repo} via teacher {args.teacher_model}...")
-            records += repo_pairs(args.repo, args.teacher_url, args.teacher_model, args.teacher_key, args.per_file)
+            records += repo_pairs(
+                args.repo, args.teacher_url, args.teacher_model, args.teacher_key, args.per_file
+            )
 
     records = dedupe(records)
     os.makedirs(os.path.dirname(args.out) or ".", exist_ok=True)

@@ -30,7 +30,7 @@ loop fed by captured usage traces.
 | Training loop | ✅ trace capture → LoRA fine-tune (`kia_train.ps1`) → Ollama export |
 | Memory (4 layers) | ✅ native SQLite backends; Weaviate/FalkorDB in server mode |
 | RAG + GraphRAG | ✅ hybrid retrieval; GraphRAG opt-in |
-| MCP (server + connectors) | ✅ stdio MCP server; connector client in chat + `/connectors` |
+| MCP (server + connectors) | ✅ stdio MCP server; 7 live connector servers / 55 tools (filesystem, fetch, DDG search, KG memory, sequential-thinking, time, GitHub); persistent pool (~30x faster warm calls); ambient chat is read-only-gated (2026-06-09) |
 | Host execution | ✅ confirmation-gated planner → host runner |
 | **API auth + rate limiting** | ✅ `KIA_API_KEY` bearer/X-API-Key + per-client sliding window (2026-06-09) |
 | **Proactive behavior** | ✅ `/api/v1/proactive/*` — scheduled prompts + file watches feeding episodic memory (2026-06-09) |

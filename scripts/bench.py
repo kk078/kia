@@ -44,21 +44,49 @@ def main() -> None:
     q = urllib.parse.quote
     # (label, method, url, body)
     tests = [
-        ("health",                 "GET",  f"{A}/health", None),
-        ("status",                 "GET",  f"{A}/api/v1/status", None),
-        ("llm/route",              "GET",  f"{A}/api/v1/llm/route?task_type=code", None),
-        ("training/stats",         "GET",  f"{A}/api/v1/training/stats", None),
-        ("memory/facts (query)",   "GET",  f"{A}/api/v1/memory/facts?limit=5", None),
-        ("memory/skills (list)",   "GET",  f"{A}/api/v1/memory/skills", None),
-        ("knowledge/retrieve",     "GET",  f"{A}/api/v1/knowledge/retrieve?query=test&top_k=5", None),
-        ("llm/generate (kia)",     "POST", f"{A}/api/v1/llm/generate?prompt={q('Say hello in one word')}&task_type=simple", None),
-        ("v1 chat (kia)",          "POST", f"{A}/v1/chat/completions",
-            {"model": "kia", "messages": [{"role": "user", "content": "Say hello in one word"}]}),
-        ("v1 chat (kia-coder)",    "POST", f"{A}/v1/chat/completions",
-            {"model": "kia-coder", "messages": [{"role": "user", "content": "Write a one-line Python comment"}]}),
-        ("knowledge/rag (/brain)", "POST", f"{A}/api/v1/knowledge/rag?question={q('Which TPA is in Birmingham, Alabama?')}", None),
-        ("v1 chat (kia-brain)",    "POST", f"{A}/v1/chat/completions",
-            {"model": "kia-brain", "messages": [{"role": "user", "content": "Which TPA is in Birmingham, Alabama?"}]}),
+        ("health", "GET", f"{A}/health", None),
+        ("status", "GET", f"{A}/api/v1/status", None),
+        ("llm/route", "GET", f"{A}/api/v1/llm/route?task_type=code", None),
+        ("training/stats", "GET", f"{A}/api/v1/training/stats", None),
+        ("memory/facts (query)", "GET", f"{A}/api/v1/memory/facts?limit=5", None),
+        ("memory/skills (list)", "GET", f"{A}/api/v1/memory/skills", None),
+        ("knowledge/retrieve", "GET", f"{A}/api/v1/knowledge/retrieve?query=test&top_k=5", None),
+        (
+            "llm/generate (kia)",
+            "POST",
+            f"{A}/api/v1/llm/generate?prompt={q('Say hello in one word')}&task_type=simple",
+            None,
+        ),
+        (
+            "v1 chat (kia)",
+            "POST",
+            f"{A}/v1/chat/completions",
+            {"model": "kia", "messages": [{"role": "user", "content": "Say hello in one word"}]},
+        ),
+        (
+            "v1 chat (kia-coder)",
+            "POST",
+            f"{A}/v1/chat/completions",
+            {
+                "model": "kia-coder",
+                "messages": [{"role": "user", "content": "Write a one-line Python comment"}],
+            },
+        ),
+        (
+            "knowledge/rag (/brain)",
+            "POST",
+            f"{A}/api/v1/knowledge/rag?question={q('Which TPA is in Birmingham, Alabama?')}",
+            None,
+        ),
+        (
+            "v1 chat (kia-brain)",
+            "POST",
+            f"{A}/v1/chat/completions",
+            {
+                "model": "kia-brain",
+                "messages": [{"role": "user", "content": "Which TPA is in Birmingham, Alabama?"}],
+            },
+        ),
     ]
 
     print(f"\nBenchmarking {A}  ({args.runs} run(s) each, median ms)\n")
@@ -74,9 +102,11 @@ def main() -> None:
         med = times[len(times) // 2]
         flag = "" if code in (200,) else f"  <{code}>"
         print(f"{label:<26}{med:>12.0f}{code:>9}{flag}")
-    print("\nNote: generation endpoints (llm/generate, v1 chat) run the local model; "
-          "kia-brain also does retrieval + verification (slowest). health/status/route "
-          "are pure API (should be single-digit to low-double-digit ms).")
+    print(
+        "\nNote: generation endpoints (llm/generate, v1 chat) run the local model; "
+        "kia-brain also does retrieval + verification (slowest). health/status/route "
+        "are pure API (should be single-digit to low-double-digit ms)."
+    )
 
 
 if __name__ == "__main__":
