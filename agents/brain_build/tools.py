@@ -24,21 +24,42 @@ _MAX_FETCH = 40_000
 
 # Command patterns that must always be approved (destructive / system / network-install).
 _HIGH_PATTERNS = [
-    r"\brm\b", r"\brmdir\b", r"\bdel\b", r"Remove-Item", r"\bRemove-",
-    r"\bformat\b", r"\bmkfs\b", r"\bdd\b",
-    r"\bshutdown\b", r"\breboot\b", r"\bReset-", r"\bStop-Computer",
-    r"\bwinget\b", r"\bchoco\b", r"\bscoop\b", r"\bnpm\s+(i|install)\s+-g",
-    r"\bpip\s+install\b", r"\bapt(-get)?\s+install", r"\bbrew\s+install",
-    r"\breg\b\s+(add|delete)", r"\bsc\b\s+(create|delete|config)", r"\bnetsh\b",
-    r"\bgit\s+push\b.*--force", r"\bgit\s+push\s+-f\b",
-    r"\bSet-ExecutionPolicy", r"\bNew-Service", r"\bcurl\b.*\|\s*(sh|bash|iex)",
-    r"Invoke-WebRequest.*\|\s*iex", r"\biex\b",
+    r"\brm\b",
+    r"\brmdir\b",
+    r"\bdel\b",
+    r"Remove-Item",
+    r"\bRemove-",
+    r"\bformat\b",
+    r"\bmkfs\b",
+    r"\bdd\b",
+    r"\bshutdown\b",
+    r"\breboot\b",
+    r"\bReset-",
+    r"\bStop-Computer",
+    r"\bwinget\b",
+    r"\bchoco\b",
+    r"\bscoop\b",
+    r"\bnpm\s+(i|install)\s+-g",
+    r"\bpip\s+install\b",
+    r"\bapt(-get)?\s+install",
+    r"\bbrew\s+install",
+    r"\breg\b\s+(add|delete)",
+    r"\bsc\b\s+(create|delete|config)",
+    r"\bnetsh\b",
+    r"\bgit\s+push\b.*--force",
+    r"\bgit\s+push\s+-f\b",
+    r"\bSet-ExecutionPolicy",
+    r"\bNew-Service",
+    r"\bcurl\b.*\|\s*(sh|bash|iex)",
+    r"Invoke-WebRequest.*\|\s*iex",
+    r"\biex\b",
 ]
 # Patterns that are clearly read-only / safe.
 _LOW_PATTERNS = [
     r"^\s*(ls|dir|cat|type|Get-Content|Get-ChildItem|pwd|echo|where|which)\b",
     r"^\s*git\s+(status|log|diff|branch|show)\b",
-    r"^\s*(node|python|py)\s+--version", r"^\s*(npm|pip)\s+(--version|list)\b",
+    r"^\s*(node|python|py)\s+--version",
+    r"^\s*(npm|pip)\s+(--version|list)\b",
 ]
 
 

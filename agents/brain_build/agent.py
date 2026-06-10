@@ -55,6 +55,10 @@ How to work well on COMPLEX tasks:
 6. REFLECT BEFORE FINISH. finish is REJECTED unless a command has passed (exit 0) since your
    last file change — a confident summary is NOT evidence. Actually run the program or its
    tests, see it pass, THEN finish and cite the command + its key output in the summary.
+7. REPORT LIKE A PROFESSIONAL. The finish summary leads with the outcome (what now works),
+   then the evidence (the exact command run and its key output). State plainly anything you
+   did NOT do or could not verify — an honest gap beats a polished overclaim. Never describe
+   a partial result as complete.
 
 Safety: destructive/system commands (delete, install, registry/service, force-push) pause for
 human approval — prefer safe, idempotent commands. Paths are confined to the working directory."""
@@ -195,7 +199,8 @@ class BuildAgent:
         s["kwargs"] = self.escalate_kwargs
         s["escalated"] = True
         self._record(
-            sid, "user",
+            sid,
+            "user",
             "NOTE: escalating to a stronger model. Do NOT trust earlier claims of completion — "
             "use list_dir and read_file to verify what is ACTUALLY on disk, create any missing "
             "files, run the program/tests to confirm, and only then finish.",
@@ -252,7 +257,8 @@ class BuildAgent:
             if s["step"] >= budget:
                 store.save(sid, status="limit")
                 yield {
-                    "type": "limit", "session_id": sid,
+                    "type": "limit",
+                    "session_id": sid,
                     "content": f"hit the {budget}-step budget — /agent continue to keep going",
                 }
                 return
@@ -275,7 +281,8 @@ class BuildAgent:
                 # Nudge the model back to protocol instead of failing the build.
                 self._record(sid, "assistant", reply)
                 self._record(
-                    sid, "user",
+                    sid,
+                    "user",
                     "OBSERVATION: your reply was not a single JSON object with a 'tool'. "
                     "Respond with exactly one JSON action object.",
                 )
@@ -299,14 +306,17 @@ class BuildAgent:
                     if esc is not None:
                         yield esc
                     self._record(
-                        sid, "user",
+                        sid,
+                        "user",
                         "OBSERVATION: finish REJECTED. You have not verified success since your "
                         "last change. Do NOT claim completion — actually run a command that "
                         "exercises the deliverable (run the program or its tests) and shows it "
                         "works (exit code 0). Then call finish.",
                     )
                     yield {
-                        "type": "observation", "step": step_no, "ok": False,
+                        "type": "observation",
+                        "step": step_no,
+                        "ok": False,
                         "content": "finish blocked — run a passing verification command first",
                     }
                     continue
@@ -321,8 +331,11 @@ class BuildAgent:
             )
             preview = _action_preview(tool, args)
             yield {
-                "type": "action", "step": step_no, "tool": tool,
-                "preview": preview, "danger": danger,
+                "type": "action",
+                "step": step_no,
+                "tool": tool,
+                "preview": preview,
+                "danger": danger,
             }
 
             # Guardrail: high-risk shell commands pause for approval.
@@ -372,17 +385,26 @@ class BuildAgent:
             s["last_cmd_ok"] = ok  # the approved action is always a run_command
             self._record(sid, "user", f"OBSERVATION:\n{obs}")
             yield {
-                "type": "observation", "step": s["step"], "ok": ok,
-                "content": obs, "approved": True,
+                "type": "observation",
+                "step": s["step"],
+                "ok": ok,
+                "content": obs,
+                "approved": True,
             }
         else:
             self._record(
-                sid, "user",
+                sid,
+                "user",
                 "OBSERVATION: the user REJECTED that command. Do not run it. "
                 "Choose a safer approach or finish.",
             )
-            yield {"type": "observation", "step": s["step"], "ok": False,
-                   "content": "(rejected by user)", "approved": False}
+            yield {
+                "type": "observation",
+                "step": s["step"],
+                "ok": False,
+                "content": "(rejected by user)",
+                "approved": False,
+            }
         async for ev in self.run(sid):
             yield ev
 

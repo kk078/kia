@@ -13,6 +13,10 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from api.openai_compat import router as openai_router
+from api.routes.n8n import router as n8n_router
+from api.routes.proactive import router as proactive_router
+from api.routes.proactive import shutdown_proactive
+from api.security import security_middleware
 from brain_core.config import settings
 from brain_core.llm import needs_deep_reasoning
 from brain_core.persona import KIA_SYSTEM
@@ -46,6 +50,21 @@ app.add_middleware(
 # KIA OpenAI-compatible surface (/v1/models, /v1/chat/completions)
 app.include_router(openai_router)
 
+# Proactive behavior (scheduled prompts, file watches) + n8n workflow bridge.
+app.include_router(proactive_router)
+app.include_router(n8n_router)
+
+# Stop the proactive scheduler/watcher on the loop they started on.
+app.on_event("shutdown")(shutdown_proactive)
+
+
+@app.on_event("shutdown")
+async def _close_connector_pool() -> None:
+    """Shut down persistent MCP connector sessions cleanly."""
+    from brain_connectors.pool import close_pool
+
+    await close_pool()
+
 
 @app.middleware("http")
 async def trace_context_middleware(request: Request, call_next: Any) -> Any:
@@ -56,6 +75,11 @@ async def trace_context_middleware(request: Request, call_next: Any) -> Any:
     session_id = request.query_params.get("session_id") or request.headers.get("x-session-id")
     set_trace_context(session_id=session_id, user_id=user)
     return await call_next(request)
+
+
+# Auth (KIA_API_KEY) + rate limiting (RATE_LIMIT_PER_MINUTE). Registered last so it
+# is the OUTERMOST middleware: rejected requests never reach tracing or handlers.
+app.middleware("http")(security_middleware)
 
 
 def _llm_error(e: Exception) -> HTTPException:
@@ -279,22 +303,27 @@ async def training_stats() -> dict[str, Any]:
 
 
 @app.post("/api/v1/connectors/query")
-async def connectors_query(prompt: str, max_steps: int = 5) -> dict[str, Any]:
+async def connectors_query(prompt: str, max_steps: int = 8) -> dict[str, Any]:
     """Answer a prompt using connected MCP tools (hybrid tool-calling agent)."""
     if not settings.connectors_enabled:
         raise HTTPException(status_code=503, detail="Connectors disabled (CONNECTORS_ENABLED=true)")
     from brain_connectors.agent import ConnectorAgent
-    from brain_connectors.client import MCPConnectorManager
+    from brain_connectors.pool import get_pool
     from brain_core.circuit_breaker import CircuitOpenError
     from brain_core.fallback import get_breaker
 
     breaker = get_breaker("connectors")
-    manager = MCPConnectorManager(settings.connectors_config)
     try:
-        await manager.connect()
+        # Shared persistent pool: servers stay launched between requests.
+        manager = await get_pool()
+        if manager is None:
+            raise HTTPException(
+                status_code=503,
+                detail="No connectors available (check CONNECTORS_CONFIG and server health)",
+            )
 
         async def _run() -> str:
-            return await ConnectorAgent(manager).run(prompt, max_steps=max_steps)
+            return await ConnectorAgent(manager).run(prompt, max_steps=min(max_steps, 16))
 
         # Circuit breaker: if connectors keep failing, fast-fail instead of stalling.
         answer = await breaker.call(_run)
@@ -304,10 +333,10 @@ async def connectors_query(prompt: str, max_steps: int = 5) -> dict[str, Any]:
             status_code=503,
             detail="Connector subsystem temporarily disabled after repeated failures; retry soon.",
         )
+    except HTTPException:
+        raise
     except Exception as e:
         raise _llm_error(e)
-    finally:
-        await manager.close()
 
 
 @app.get("/api/v1/connectors/list")
@@ -315,14 +344,11 @@ async def connectors_list() -> dict[str, Any]:
     """List the tools exposed by currently configured MCP connectors."""
     if not settings.connectors_enabled:
         raise HTTPException(status_code=503, detail="Connectors disabled (CONNECTORS_ENABLED=true)")
-    from brain_connectors.client import MCPConnectorManager
+    from brain_connectors.pool import get_pool
 
-    manager = MCPConnectorManager(settings.connectors_config)
-    try:
-        tools = await manager.connect()
-        return {"tools": [t["function"]["name"] for t in tools], "count": len(tools)}
-    finally:
-        await manager.close()
+    manager = await get_pool()
+    tools = manager.tools if manager is not None else []
+    return {"tools": [t["function"]["name"] for t in tools], "count": len(tools)}
 
 
 # ---------------------------------------------------------------------------

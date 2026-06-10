@@ -41,8 +41,7 @@ def rows_from_xlsx(path: str, sheet: str | None) -> tuple[list[str], list[list[s
         raise SystemExit("Install the Excel reader first:  pip install openpyxl")
     wb = load_workbook(path, read_only=True, data_only=True)
     ws = wb[sheet] if sheet else wb.active
-    data = [[("" if c is None else str(c)) for c in row]
-            for row in ws.iter_rows(values_only=True)]
+    data = [[("" if c is None else str(c)) for c in row] for row in ws.iter_rows(values_only=True)]
     if not data:
         return [], []
     return data[0], data[1:]
@@ -67,9 +66,12 @@ def post(api: str, content: str, source: str, retries: int = 3) -> int:
     last_err = None
     for attempt in range(retries):
         try:
-            req = urllib.request.Request(api.rstrip("/") + "/api/v1/knowledge/ingest",
-                                         data=body, headers={"Content-Type": "application/json"},
-                                         method="POST")
+            req = urllib.request.Request(
+                api.rstrip("/") + "/api/v1/knowledge/ingest",
+                data=body,
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
             with urllib.request.urlopen(req, timeout=600) as r:
                 return len(json.loads(r.read().decode()).get("chunk_ids", []))
         except Exception as e:  # noqa: BLE001 - retry transient drops (container restart, OOM)
@@ -132,7 +134,9 @@ def main() -> None:
             failed += 1
             print(f"  record {sent}: FAILED ({e})")
 
-    print(f"\nDone. records_sent={sent} indexed={indexed} duplicate_skipped={skipped} failed={failed}")
+    print(
+        f"\nDone. records_sent={sent} indexed={indexed} duplicate_skipped={skipped} failed={failed}"
+    )
     print("Ask KIA about it in chat with:  /brain <your question>")
 
 

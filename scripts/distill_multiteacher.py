@@ -25,34 +25,49 @@ DEFAULT_URL = "https://ollama.com/v1"
 
 # substring -> domain (for --auto). Order = preference when picking one per domain.
 SPECIALITY_MAP = [
-    ("qwen3-coder", "coding"), ("devstral", "coding"), ("coder", "coding"), ("code", "coding"),
-    ("deepseek-v4-pro", "reasoning"), ("deepseek", "reasoning"), ("kimi", "reasoning"),
-    ("nemotron", "reasoning"), ("minimax", "reasoning"), ("cogito", "reasoning"),
-    ("gpt-oss:120b", "general"), ("glm-5", "general"), ("gemma", "general"),
-    ("mistral", "general"), ("gpt-oss", "general"), ("glm", "general"),
+    ("qwen3-coder", "coding"),
+    ("devstral", "coding"),
+    ("coder", "coding"),
+    ("code", "coding"),
+    ("deepseek-v4-pro", "reasoning"),
+    ("deepseek", "reasoning"),
+    ("kimi", "reasoning"),
+    ("nemotron", "reasoning"),
+    ("minimax", "reasoning"),
+    ("cogito", "reasoning"),
+    ("gpt-oss:120b", "general"),
+    ("glm-5", "general"),
+    ("gemma", "general"),
+    ("mistral", "general"),
+    ("gpt-oss", "general"),
+    ("glm", "general"),
 ]
-DEFAULT_PROMPTS = {"coding": "training/prompts/coding.txt",
-                   "reasoning": "training/prompts/reasoning.txt",
-                   "math": "training/prompts/math.txt",
-                   "general": "training/prompts/general.txt"}
+DEFAULT_PROMPTS = {
+    "coding": "training/prompts/coding.txt",
+    "reasoning": "training/prompts/reasoning.txt",
+    "math": "training/prompts/math.txt",
+    "general": "training/prompts/general.txt",
+}
 
 
 def teacher_answer(url: str, model: str, key: str, prompt: str) -> str:
-    body = json.dumps({"model": model,
-                       "messages": [{"role": "user", "content": prompt}],
-                       "temperature": 0.3}).encode()
+    body = json.dumps(
+        {"model": model, "messages": [{"role": "user", "content": prompt}], "temperature": 0.3}
+    ).encode()
     headers = {"Content-Type": "application/json"}
     if key:
         headers["Authorization"] = "Bearer " + key
-    req = urllib.request.Request(url.rstrip("/") + "/chat/completions",
-                                 data=body, headers=headers, method="POST")
+    req = urllib.request.Request(
+        url.rstrip("/") + "/chat/completions", data=body, headers=headers, method="POST"
+    )
     with urllib.request.urlopen(req, timeout=600) as r:
         return json.loads(r.read().decode())["choices"][0]["message"]["content"]
 
 
 def list_models(url: str, key: str) -> list[str]:
-    req = urllib.request.Request(url.rstrip("/") + "/models",
-                                 headers={"Authorization": "Bearer " + key})
+    req = urllib.request.Request(
+        url.rstrip("/") + "/models", headers={"Authorization": "Bearer " + key}
+    )
     with urllib.request.urlopen(req, timeout=60) as r:
         return [m["id"] for m in json.loads(r.read().decode()).get("data", [])]
 
@@ -125,8 +140,11 @@ def main() -> None:
     ap.add_argument("--key", default=os.getenv("TEACHER_KEY", ""))
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--auto", action="store_true")
-    ap.add_argument("--dedupe-only", action="store_true",
-                    help="collapse duplicate questions in --out and exit (no teacher calls)")
+    ap.add_argument(
+        "--dedupe-only",
+        action="store_true",
+        help="collapse duplicate questions in --out and exit (no teacher calls)",
+    )
     args = ap.parse_args()
 
     if args.dedupe_only:
@@ -145,15 +163,17 @@ def main() -> None:
         print("--auto: picking ONE best model per domain (avoids duplicate questions).")
         models = list_models(url, args.key)
         best: dict[str, str] = {}
-        for sub, dom in SPECIALITY_MAP:          # SPECIALITY_MAP order = preference
+        for sub, dom in SPECIALITY_MAP:  # SPECIALITY_MAP order = preference
             if dom in best:
                 continue
             for m in models:
                 if sub in m.lower():
                     best[dom] = m
                     break
-        teachers = [{"model": m, "domain": d, "prompts": DEFAULT_PROMPTS.get(d, "")}
-                    for d, m in best.items()]
+        teachers = [
+            {"model": m, "domain": d, "prompts": DEFAULT_PROMPTS.get(d, "")}
+            for d, m in best.items()
+        ]
         print("Chosen:", ", ".join(f"{t['domain']}={t['model']}" for t in teachers))
 
     # one teacher per domain even from a hand-written config (dedupe domains, keep first)
@@ -171,7 +191,9 @@ def main() -> None:
 
     for t in routed:
         model, domain = t["model"], t.get("domain", "general")
-        prompts = load_prompts(t.get("prompts", "")) or load_prompts(DEFAULT_PROMPTS.get(domain, ""))
+        prompts = load_prompts(t.get("prompts", "")) or load_prompts(
+            DEFAULT_PROMPTS.get(domain, "")
+        )
         if args.limit:
             prompts = prompts[: args.limit]
         if not prompts:
@@ -185,9 +207,15 @@ def main() -> None:
             except Exception as e:
                 print(f"  !! {model}: {e}")
                 continue
-            records.append({"messages": [{"role": "user", "content": p},
-                                         {"role": "assistant", "content": ans}],
-                            "meta": {"domain": domain, "teacher": model}})
+            records.append(
+                {
+                    "messages": [
+                        {"role": "user", "content": p},
+                        {"role": "assistant", "content": ans},
+                    ],
+                    "meta": {"domain": domain, "teacher": model},
+                }
+            )
             ok += 1
             print(f"  + [{ok}/{len(prompts)}] {p[:60]}")
 

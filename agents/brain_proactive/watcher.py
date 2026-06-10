@@ -97,9 +97,10 @@ class FileWatcher:
         return False
 
     def stop(self) -> None:
-        """Stop all watchers."""
-        self.observer.stop()
-        self.observer.join()
+        """Stop all watchers. Safe to call even if no watch ever started."""
+        if self.observer.is_alive():
+            self.observer.stop()
+            self.observer.join()
         self.watches.clear()
 
     def list_watches(self) -> list[dict[str, Any]]:

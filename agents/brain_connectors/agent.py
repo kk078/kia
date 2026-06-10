@@ -33,7 +33,7 @@ class ConnectorAgent:
             return settings.connector_planner_model
         return f"{settings.default_oss_provider}/{settings.default_oss_model}"
 
-    async def run(self, prompt: str, max_steps: int = 5) -> str:
+    async def run(self, prompt: str, max_steps: int = 8) -> str:
         """Answer ``prompt``, calling connector tools as needed (bounded by max_steps)."""
         tools = self.manager.tools
         if not tools:
@@ -51,8 +51,19 @@ class ConnectorAgent:
                     "permission to use a tool you already have. Only if a required detail "
                     "is genuinely missing (e.g. which channel, which repo), ask exactly "
                     "ONE short, specific question and stop. Chain multiple tool calls when "
-                    "a task needs several steps. When the task is done, give a brief final "
-                    "answer stating what you did and the result."
+                    "a task needs several steps; for multi-step or ambiguous tasks, use "
+                    "the sequentialthinking tool first to plan before acting.\n\n"
+                    "Execution standards:\n"
+                    "- VERIFY before you claim: after a mutating action (writing a file, "
+                    "creating an issue), read it back or check the tool result before "
+                    "saying it succeeded.\n"
+                    "- If a tool returns an error, adapt (different args, different tool) "
+                    "rather than repeating the same call; report honestly if it cannot "
+                    "be done.\n"
+                    "- Final answer: lead with the outcome (what is now true), then the "
+                    "evidence (which tools you used and what they returned). State "
+                    "plainly anything you did not do or could not verify. Never invent "
+                    "tool output."
                 ),
             },
             {"role": "user", "content": prompt},
@@ -96,9 +107,17 @@ class ConnectorAgent:
                     args = {}
                 result = await self.manager.call_tool(name, args)
                 messages.append({"role": "tool", "tool_call_id": tc.id, "content": result})
-        # Out of steps -> ask for a final synthesis from what we gathered.
+        # Out of steps -> synthesize from the FULL transcript (truncated), not just
+        # the tail — otherwise early tool results (and parts of the task) get lost.
+        transcript = json.dumps(messages[1:], default=str)
+        if len(transcript) > 24000:
+            transcript = transcript[:12000] + "\n...[truncated]...\n" + transcript[-12000:]
         return await self.router.generate(
-            "Summarize the answer based on the tool results above:\n"
-            + json.dumps(messages[-4:], default=str),
+            f"The user asked: {prompt}\n\n"
+            f"Tool calls made and their results:\n{transcript}\n\n"
+            "Write the final reply to the user. Lead with the outcome (answer every "
+            "part of their request that the results cover), then brief evidence. "
+            "State plainly any part that was NOT completed. Speak as KIA in first "
+            "person; never refer to 'the assistant'.",
             task_type="synthesis",
         )

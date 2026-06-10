@@ -53,6 +53,12 @@ class Settings(BaseSettings):
     environment: str = "development"
     log_level: str = "INFO"
 
+    # API security. KIA_API_KEY empty -> auth disabled (localhost/native default).
+    # When set, every request needs `Authorization: Bearer <key>` or `X-API-Key`.
+    kia_api_key: str = ""
+    # Per-client sliding-window rate limit (requests/minute). 0 disables.
+    rate_limit_per_minute: int = 120
+
     # Langfuse
     langfuse_public_key: str = ""
     langfuse_secret_key: str = ""
@@ -119,7 +125,7 @@ class Settings(BaseSettings):
     # Build agent escalation tier: switch to a stronger model when the default stalls
     # (the finish-gate keeps rejecting, or commands thrash). Empty disables escalation.
     build_escalate_model: str = ""  # e.g. "anthropic/claude-opus-4-6" (uses ANTHROPIC_API_KEY)
-    build_escalate_after: int = 2   # finish-gate rejections before escalating
+    build_escalate_after: int = 2  # finish-gate rejections before escalating
 
     # Connectors / MCP client layer.
     connectors_enabled: bool = False

@@ -39,6 +39,7 @@ def ocr_image(path: str) -> str:
 def ocr_pdf(path: str) -> str:
     """OCR an image-only PDF by rasterizing pages (needs pdf2image + Poppler)."""
     import pytesseract
+
     try:
         from pdf2image import convert_from_path
     except ImportError:
@@ -53,9 +54,12 @@ def ocr_pdf(path: str) -> str:
 
 def post(api: str, content: str, source: str) -> int:
     body = json.dumps({"content": content, "source": source}).encode()
-    req = urllib.request.Request(api.rstrip("/") + "/api/v1/knowledge/ingest",
-                                 data=body, headers={"Content-Type": "application/json"},
-                                 method="POST")
+    req = urllib.request.Request(
+        api.rstrip("/") + "/api/v1/knowledge/ingest",
+        data=body,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
     with urllib.request.urlopen(req, timeout=600) as r:
         return len(json.loads(r.read().decode()).get("chunk_ids", []))
 
@@ -81,6 +85,7 @@ def main() -> None:
 
     if args.tesseract:
         import pytesseract
+
         pytesseract.pytesseract.tesseract_cmd = args.tesseract
 
     files = collect(args.target)
